@@ -31,3 +31,35 @@ summarization.
 chief_complaint, active_problems, current_medications, recent_labs, 
 allergies, pending_items, unverified_fields — each field (except 
 unverified_fields) should support a source citation.
+
+## Current Status
+Stage 5 complete — source-traced extraction pipeline working end-to-end.
+Stage 6 complete — PostgreSQL storage layer set up and migrated.
+
+## Database (Stage 6)
+PostgreSQL via SQLAlchemy ORM + Alembic migrations.
+
+### Tables
+- **patients** — `id` (VARCHAR 64, PK = patient_id string), `created_at`
+- **source_notes** — `id`, `patient_id` (FK → patients.id), `raw_text`, `created_at`
+- **summaries** — `id`, `patient_id` (FK), `source_note_id` (FK, nullable),
+  `summary_json` (JSON — full ClinicalSummary), `verified_count`,
+  `unverified_count`, `model_used`, `created_at`
+
+### Running migrations
+```
+cd clinical-history-summarizer
+alembic upgrade head
+```
+
+### Checking current migration state
+```
+alembic current
+alembic history
+```
+
+### Generating a new migration after model changes
+```
+alembic revision --autogenerate -m "describe_change"
+alembic upgrade head
+```
