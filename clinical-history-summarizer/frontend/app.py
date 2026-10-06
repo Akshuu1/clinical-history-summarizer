@@ -1,273 +1,411 @@
 """
 Streamlit Demo UI — Clinical History Summarizer
+Stage 8.1
 
 Side-by-side view:
-  LEFT  — original normalised notes with line numbers
-  RIGHT — structured clinical summary with source citations and unverified flags
+  LEFT  — original notes with line numbers so the audience can see
+           exactly what source text was available
+  RIGHT — structured summary: each field shows its citation (line + quote)
+           if verified, or a red UNVERIFIED badge if the citation was
+           missing or invalid
 
 Run:
-  streamlit run frontend/app.py
+    cd clinical-history-summarizer
+    streamlit run frontend/app.py
 """
 
 import json
 import os
-import sys
+import pathlib
 
-
+import requests
 import streamlit as st
-import httpx
 
-# Allow importing project modules if run from project root
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# ── Config ─────────────────────────────────────────────────────────────────────
+API_BASE = os.environ.get("API_URL", "http://localhost:8000")
+REPORTS_PATH = pathlib.Path(__file__).parent.parent / "reports" / "evaluation_report.json"
 
-API_URL = os.environ.get("API_URL", "http://localhost:8000/api/v1")
-
+# ── Page setup ─────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Clinical History Summarizer",
     page_icon="🏥",
     layout="wide",
 )
 
-# ── Custom CSS ─────────────────────────────────────────────────────────────────
+# ── Styling ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-.unverified-badge {
-    background-color: #FF4B4B;
-    color: white;
-    padding: 2px 8px;
+/* Unverified badge — bright red, hard to miss */
+.badge-unverified {
+    background: #e53935;
+    color: #fff;
+    font-size: 0.72em;
+    font-weight: 700;
+    padding: 2px 7px;
     border-radius: 4px;
-    font-size: 0.75em;
-    font-weight: bold;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
     margin-left: 6px;
 }
-.source-cite {
-    font-size: 0.75em;
-    color: #888;
+
+/* Verified citation pill */
+.cite {
+    font-size: 0.72em;
+    color: #5c9ec7;
     font-style: italic;
-    margin-left: 6px;
+    margin-left: 5px;
+    vertical-align: middle;
 }
-.line-number {
-    color: #888;
-    font-size: 0.8em;
-    min-width: 40px;
-    display: inline-block;
+
+/* Line-numbered notes block */
+.notes-block {
+    font-family: 'Courier New', monospace;
+    font-size: 0.82em;
+    white-space: pre-wrap;
+    background: #0e1117;
+    color: #d0d0d0;
+    padding: 14px 16px;
+    border-radius: 6px;
+    line-height: 1.65;
+    overflow-y: auto;
+    max-height: 680px;
 }
-.med-item { padding: 4px 0; }
+.ln  { color: #555; user-select: none; }                   /* line number  */
+.ln-hi { color: #f9a825; font-weight: bold; }              /* cited line   */
+
+/* Section headings in summary */
+.sec { font-size: 0.78em; font-weight: 700; color: #9e9e9e;
+       letter-spacing: 0.08em; text-transform: uppercase;
+       margin: 14px 0 4px; }
+
+/* Individual fact rows */
+.fact { padding: 5px 0; border-bottom: 1px solid #1e2a35; }
+.fact:last-child { border-bottom: none; }
+
+.stats-box {
+    background: #131c27;
+    border: 1px solid #1e3050;
+    border-radius: 8px;
+    padding: 12px 18px;
+    margin-bottom: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ── Header ─────────────────────────────────────────────────────────────────────
-st.title("🏥 Clinical History Summarizer")
-st.caption(
-    "Paste multi-source clinical notes below. The AI extracts a structured summary "
-    "and cites every claim back to a specific line in the original text. "
-    "Unverified fields are flagged — never silently presented as fact."
-)
 
-# ── Sidebar ────────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.header("⚙️ Settings")
-    patient_id = st.text_input("Patient ID", value="DEMO-001")
-    source_label = st.selectbox(
-        "Note type",
-        ["general", "ED admission", "ward round", "lab report", "discharge summary"],
-    )
-    st.divider()
-    st.markdown("**API Status**")
-    try:
-        resp = httpx.get(f"{API_URL}/health", timeout=3)
-        if resp.status_code == 200:
-            st.success("Backend connected ✓")
-        else:
-            st.warning(f"Backend returned {resp.status_code}")
-    except Exception:
-        st.error("Backend not reachable — start uvicorn")
+# ── Helpers ─────────────────────────────────────────────────────────────────────
 
-# ── Main input ─────────────────────────────────────────────────────────────────
-EXAMPLE_NOTE = """Patient: DEMO-001 | DOB: 1972-05-10 | MRN: DM0001
-Date: 2024-10-01 | Ward: Medical
+def badge_unverified() -> str:
+    return '<span class="badge-unverified">⚠ UNVERIFIED</span>'
 
-CHIEF COMPLAINT:
-Patient presents with 3-day history of worsening shortness of breath and bilateral leg swelling.
 
-ALLERGIES:
-- Penicillin: hives and angioedema
-- Contrast dye: anaphylactoid reaction (2022)
+def cite_span(source: dict | None) -> str:
+    """Render a small blue citation pill if source is valid."""
+    if not source:
+        return ""
+    line = source.get("line_number", "?")
+    text = source.get("quoted_text", "")
+    # Truncate long quoted texts for display
+    display = text if len(text) <= 55 else text[:52] + "…"
+    return f'<span class="cite">→ L{line}: "{display}"</span>'
 
-CURRENT MEDICATIONS:
-- Furosemide 40mg oral once daily
-- Carvedilol 6.25mg oral twice daily
-- Spironolactone 25mg oral once daily
-- Lisinopril 5mg oral once daily
 
-ACTIVE PROBLEMS:
-1. Decompensated heart failure (EF 30% — echo 2024-08-15)
-2. Hypertension
-3. Chronic kidney disease Stage 3a
+def section(label: str) -> str:
+    return f'<div class="sec">{label}</div>'
 
-RECENT LABS (2024-10-01):
-- BNP: 980 pg/mL (HIGH)
-- Creatinine: 165 umol/L (HIGH)
-- K: 5.2 mmol/L (borderline high)
-- Na: 136 mmol/L
-- Chest X-ray: Cardiomegaly, bilateral pleural effusions
 
-PENDING:
-- Echocardiogram repeat
-- Cardiology review
-- Nephrology input re: worsening renal function
+def fact_row(content: str) -> str:
+    return f'<div class="fact">{content}</div>'
+
+
+def render_notes_with_highlights(raw_notes: str, cited_lines: set[int]) -> str:
+    """
+    Render the raw notes as a monospace block where cited lines are
+    highlighted in amber so the audience can immediately see which lines
+    were used as sources.
+    """
+    lines = raw_notes.splitlines()
+    html_lines = []
+    for i, line in enumerate(lines, 1):
+        ln_class = "ln-hi" if i in cited_lines else "ln"
+        # Escape HTML special chars
+        safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        html_lines.append(
+            f'<span class="{ln_class}">L{i:>3}</span>  {safe_line}'
+        )
+    return '<div class="notes-block">' + "\n".join(html_lines) + "</div>"
+
+
+def collect_cited_lines(summary: dict) -> set[int]:
+    """Walk the summary dict and collect all referenced line numbers."""
+    lines = set()
+
+    def _extract_ln(obj):
+        if isinstance(obj, dict):
+            if "line_number" in obj:
+                lines.add(obj["line_number"])
+            for v in obj.values():
+                _extract_ln(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                _extract_ln(item)
+
+    _extract_ln(summary)
+    return lines
+
+
+# ── Example note (case 6 — the deliberately ambiguous ACS case) ─────────────
+EXAMPLE_NOTE = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
+
+Pt: E9 / DOB ~1958 / seen 8/10/24
+
+CC - chest pain, onset last night around 10pm. Described as pressure,
+7/10, radiates L arm. Had similar episode 6mo ago that "went away on its own".
+Diaphoresis present. No syncope.
+
+Pmhx: T2DM (on meds), HTN, ex-smoker (quit ~10yrs ago)
+
+Meds (from patient — not verified against GP records):
+metformin - not sure of dose, says "the small ones twice a day"
+ramipril 5mg od
+amlodipine - patient says 5 or 10mg, not certain
+
+Allergies: says he had a bad reaction to "an antibiotic" years ago
+but cannot recall which one or what happened. Nothing in the notes
+brought today.
+
+Ix:
+Trop I: 0.06 (lab ref <0.04) — HIGH — taken at 03:15
+ECG: ST depression V3-V5 (done on arrival)
+
+Plan:
+- ACS protocol started
+- repeat trop at 0h+3 pending
+- cardiology to review
 """
 
+
+# ── Sidebar ─────────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.header("⚙️ Settings")
+
+    patient_id = st.text_input("Patient ID", value="case_demo")
+
+    st.divider()
+    st.markdown("**API**")
+    try:
+        r = requests.get(f"{API_BASE}/health", timeout=3)
+        if r.status_code == 200:
+            st.success("Backend connected ✓")
+        else:
+            st.warning(f"Backend returned HTTP {r.status_code}")
+    except Exception:
+        st.error(f"Backend unreachable at {API_BASE}")
+
+    # ── Evaluation report ─────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("**Evaluation Results**")
+    if REPORTS_PATH.exists():
+        try:
+            report = json.loads(REPORTS_PATH.read_text())
+            for k, v in report.items():
+                if isinstance(v, float):
+                    st.metric(k.replace("_", " ").title(), f"{v:.1%}")
+                elif isinstance(v, (int, str)):
+                    st.metric(k.replace("_", " ").title(), v)
+        except Exception as e:
+            st.caption(f"Could not load report: {e}")
+    else:
+        st.caption("No evaluation_report.json found yet.")
+        st.caption("Run `scripts/evaluate.py` first.")
+
+
+# ── Header ──────────────────────────────────────────────────────────────────────
+st.title("🏥 Clinical History Summarizer")
+st.caption(
+    "Paste multi-source clinical notes. The AI extracts a structured summary and **cites "
+    "every claim back to a specific line** in the original text. Fields it cannot trace "
+    "are **flagged red** — never silently presented as fact."
+)
+
+# ── Input area ─────────────────────────────────────────────────────────────────
 notes_input = st.text_area(
     "Paste clinical notes here",
     value=EXAMPLE_NOTE,
-    height=320,
-    placeholder="Paste admission notes, lab reports, medication lists...",
+    height=280,
+    placeholder="Paste admission notes, lab reports, medication lists…",
 )
 
-extract_btn = st.button("🔍 Extract Summary", type="primary", use_container_width=True)
+btn_col, _ = st.columns([1, 3])
+with btn_col:
+    extract_btn = st.button("🔍 Generate Summary", type="primary", use_container_width=True)
 
-# ── Results ────────────────────────────────────────────────────────────────────
+
+# ── Extraction ──────────────────────────────────────────────────────────────────
 if extract_btn:
     if not notes_input.strip():
-        st.error("Please enter some clinical notes first.")
-    else:
-        with st.spinner("Extracting and verifying clinical summary..."):
-            try:
-                response = httpx.post(
-                    f"{API_URL}/extract",
-                    json={
-                        "patient_id": patient_id,
-                        "notes": notes_input,
-                        "source_label": source_label,
-                    },
-                    timeout=60,
-                )
-                response.raise_for_status()
-                data = response.json()
-            except httpx.HTTPStatusError as e:
-                st.error(f"API error {e.response.status_code}: {e.response.text}")
-                st.stop()
-            except Exception as e:
-                st.error(f"Connection error: {e}")
-                st.stop()
+        st.error("Please paste some clinical notes first.")
+        st.stop()
 
-        summary = data["summary"]
-        raw_lines = data["raw_normalised_lines"]
-        warnings = data.get("warnings", [])
-        unverified = set(summary.get("unverified_fields", []))
+    with st.spinner("Extracting and verifying… (this takes ~10 seconds)"):
+        try:
+            resp = requests.post(
+                f"{API_BASE}/extract",
+                json={"patient_id": patient_id, "raw_notes": notes_input},
+                timeout=90,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.HTTPError as e:
+            st.error(f"API error {e.response.status_code}: {e.response.text[:300]}")
+            st.stop()
+        except Exception as e:
+            st.error(f"Connection error: {e}")
+            st.stop()
 
-        # Warnings
-        for w in warnings:
-            st.warning(w)
+    summary: dict = data["summary"]
+    stats: dict = data["summary_stats"]
+    unverified: set = set(summary.get("unverified_fields", []))
+    cited_lines = collect_cited_lines(summary)
 
-        # ── Side-by-side layout ────────────────────────────────────────────────
-        left_col, right_col = st.columns([1, 1], gap="large")
+    # ── Stats banner ────────────────────────────────────────────────────────────
+    total = stats["total_fields_extracted"]
+    verified = stats["verified_count"]
+    unverif  = stats["unverified_count"]
+    pct = int(100 * verified / total) if total else 0
+    color = "#2e7d32" if pct >= 80 else "#f57c00" if pct >= 50 else "#c62828"
 
-        # LEFT: Original notes
-        with left_col:
-            st.subheader("📄 Original Notes (line-numbered)")
-            lines_display = []
-            for i, line in enumerate(raw_lines, start=1):
-                lines_display.append(f"L{i:>3}: {line}")
-            st.code("\n".join(lines_display), language=None)
+    st.markdown(
+        f'<div class="stats-box">'
+        f'<b style="font-size:1.05em">Extraction complete</b> &nbsp;|&nbsp; '
+        f'<b style="color:{color}">{verified}/{total} fields verified ({pct}%)</b>'
+        f'{f" &nbsp;|&nbsp; <b style=\'color:#e53935\'>{unverif} unverified</b>" if unverif else ""}'
+        f'&nbsp;|&nbsp; Stored as summary #{data["stored_summary_id"]}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
-        # RIGHT: Structured summary
-        with right_col:
-            st.subheader("✅ Verified Clinical Summary")
+    # ── Two-column layout ───────────────────────────────────────────────────────
+    left_col, right_col = st.columns([1, 1], gap="large")
 
-            def cite(item):
-                return (
-                    f'<span class="source-cite">→ L{item["source_line"]}: '
-                    f'"{item["source_text"]}"</span>'
-                )
+    # ── LEFT: Original notes with highlighted cited lines ──────────────────────
+    with left_col:
+        st.subheader("📄 Original Notes")
+        if cited_lines:
+            st.caption(f"Lines highlighted in amber were cited as sources ({len(cited_lines)} lines used)")
+        st.markdown(
+            render_notes_with_highlights(notes_input, cited_lines),
+            unsafe_allow_html=True,
+        )
 
-            def unverified_badge():
-                return '<span class="unverified-badge">⚠ UNVERIFIED</span>'
+    # ── RIGHT: Structured summary ───────────────────────────────────────────────
+    with right_col:
+        st.subheader("✅ Structured Summary")
 
-            # Chief Complaint
-            st.markdown("**Chief Complaint**")
-            cc = summary.get("chief_complaint")
-            if cc:
-                st.markdown(
-                    f'{cc["value"]} {cite(cc)}',
-                    unsafe_allow_html=True,
-                )
-            elif "chief_complaint" in unverified:
-                st.markdown(
-                    f"Not verifiable {unverified_badge()}",
-                    unsafe_allow_html=True,
-                )
+        html = []
+
+        # ── Chief Complaint ──────────────────────────────────────────────────
+        html.append(section("Chief Complaint"))
+        cc = summary.get("chief_complaint")
+        src = summary.get("chief_complaint_source")
+        if cc:
+            is_unverified = "chief_complaint" in unverified
+            row = f"<b>{cc}</b>"
+            if is_unverified:
+                row += badge_unverified()
             else:
-                st.caption("Not found in notes")
+                row += cite_span(src)
+            html.append(fact_row(row))
+        else:
+            html.append(fact_row('<i style="color:#666">Not found in notes</i>'))
 
-            # Allergies
-            st.markdown("**🚨 Allergies**")
-            if "allergies" in unverified and not summary.get("allergies"):
-                st.markdown(
-                    f"Citation failed {unverified_badge()}",
-                    unsafe_allow_html=True,
-                )
-            elif summary.get("allergies"):
-                for a in summary["allergies"]:
-                    reaction = f" — {a['reaction']}" if a.get("reaction") else ""
-                    st.markdown(
-                        f"• **{a['substance']}**{reaction} {cite(a)}",
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.caption("None documented")
+        # ── Active Problems ──────────────────────────────────────────────────
+        html.append(section("Active Problems"))
+        problems = summary.get("active_problems", [])
+        sources  = summary.get("active_problems_sources", [])
+        if problems:
+            for i, prob in enumerate(problems):
+                key = f"active_problems[{i}]"
+                is_unv = key in unverified
+                src_obj = sources[i] if i < len(sources) else None
+                row = f"• {prob}"
+                row += badge_unverified() if is_unv else cite_span(src_obj)
+                html.append(fact_row(row))
+        else:
+            html.append(fact_row('<i style="color:#666">None found</i>'))
 
-            # Active Problems
-            st.markdown("**🩺 Active Problems**")
-            for p in summary.get("active_problems", []):
-                st.markdown(f"• {p['value']} {cite(p)}", unsafe_allow_html=True)
-            if not summary.get("active_problems"):
-                st.caption("None found")
+        # ── Current Medications ──────────────────────────────────────────────
+        html.append(section("🚨 Current Medications"))
+        meds = summary.get("current_medications", [])
+        if meds:
+            for i, med in enumerate(meds):
+                key = f"current_medications[{i}]"
+                is_unv = key in unverified
+                detail_parts = [med.get("dose"), med.get("timing")]
+                detail = " — " + " ".join(p for p in detail_parts if p) if any(detail_parts) else ""
+                row = f"• <b>{med['name']}</b>{detail}"
+                row += badge_unverified() if is_unv else cite_span(med.get("source"))
+                html.append(fact_row(row))
+        else:
+            html.append(fact_row('<i style="color:#666">None documented</i>'))
 
-            # Current Medications
-            st.markdown("**💊 Current Medications**")
-            if "current_medications" in unverified and not summary.get("current_medications"):
-                st.markdown(
-                    f"Citation failed {unverified_badge()}",
-                    unsafe_allow_html=True,
-                )
-            for m in summary.get("current_medications", []):
-                dose = m.get("dose", "")
-                freq = m.get("frequency", "")
-                route = m.get("route", "")
-                detail = " ".join(filter(None, [dose, freq, route]))
-                st.markdown(
-                    f'<div class="med-item">• <b>{m["name"]}</b>'
-                    f'{" — " + detail if detail else ""} {cite(m)}</div>',
-                    unsafe_allow_html=True,
-                )
+        # ── Allergies ────────────────────────────────────────────────────────
+        html.append(section("⚠ Allergies"))
+        allergies = summary.get("allergies", [])
+        allergy_sources = summary.get("allergies_sources", [])
+        if allergies:
+            for i, al in enumerate(allergies):
+                key = f"allergies[{i}]"
+                is_unv = key in unverified
+                src_obj = allergy_sources[i] if i < len(allergy_sources) else None
+                row = f"• <b>{al}</b>"
+                row += badge_unverified() if is_unv else cite_span(src_obj)
+                html.append(fact_row(row))
+        else:
+            html.append(fact_row('<i style="color:#4caf50">✓ No known allergies documented</i>'))
 
-            # Recent Labs
-            st.markdown("**🔬 Recent Labs**")
-            for lab in summary.get("recent_labs", []):
-                flag = f" [{lab['flag']}]" if lab.get("flag") else ""
-                unit = f" {lab['unit']}" if lab.get("unit") else ""
-                date = f" ({lab['date']})" if lab.get("date") else ""
-                color = "red" if lab.get("flag") in ("HIGH", "LOW", "CRITICAL") else "inherit"
-                st.markdown(
-                    f'• {lab["test"]}: <span style="color:{color}"><b>{lab["result"]}'
-                    f'{unit}{flag}</b></span>{date} {cite(lab)}',
-                    unsafe_allow_html=True,
-                )
+        # ── Recent Labs ──────────────────────────────────────────────────────
+        html.append(section("Recent Labs / Investigations"))
+        labs = summary.get("recent_labs", [])
+        if labs:
+            for i, lab in enumerate(labs):
+                key = f"recent_labs[{i}]"
+                is_unv = key in unverified
+                value_str = lab.get("value") or "—"
+                date_str  = f" &nbsp;<small>({lab['date']})</small>" if lab.get("date") else ""
+                row = f"• <b>{lab['test_name']}</b>: {value_str}{date_str}"
+                row += badge_unverified() if is_unv else cite_span(lab.get("source"))
+                html.append(fact_row(row))
+        else:
+            html.append(fact_row('<i style="color:#666">None documented</i>'))
 
-            # Pending Items
-            st.markdown("**📋 Pending Items**")
-            for item in summary.get("pending_items", []):
-                st.markdown(f"• {item['value']} {cite(item)}", unsafe_allow_html=True)
+        # ── Pending Items ────────────────────────────────────────────────────
+        html.append(section("Pending / Follow-up"))
+        pending = summary.get("pending_items", [])
+        if pending:
+            for item in pending:
+                html.append(fact_row(f"• {item}"))
+        else:
+            html.append(fact_row('<i style="color:#666">None</i>'))
 
-            # Unverified fields summary
-            if unverified:
-                st.divider()
-                st.markdown("**⚠️ Fields with citation failures (treat as unconfirmed)**")
-                for f in unverified:
-                    st.markdown(f"• `{f}`")
+        # ── Unverified fields summary box ────────────────────────────────────
+        if unverified:
+            html.append("<hr style='border-color:#3a1a1a; margin:16px 0 8px'>")
+            html.append(
+                '<div style="background:#2a1010; border:1px solid #7b2020; '
+                'border-radius:6px; padding:10px 14px; margin-top:8px;">'
+                '<b style="color:#e53935">⚠ Unverified fields</b> '
+                '<span style="color:#bbb; font-size:0.85em">— '
+                'could not be traced to a specific source line. '
+                'Do not act on these without independent verification.</span><br>'
+            )
+            for f in sorted(unverified):
+                html.append(f'&nbsp;&nbsp;• <code>{f}</code><br>')
+            html.append("</div>")
 
-        # Raw JSON expander
-        with st.expander("🔧 Raw API Response (JSON)"):
-            st.json(data)
+        st.markdown("\n".join(html), unsafe_allow_html=True)
+
+    # ── Raw JSON expander ───────────────────────────────────────────────────────
+    with st.expander("🔧 Raw API Response (for debugging)"):
+        st.json(data)
