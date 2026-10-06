@@ -127,6 +127,15 @@ pending_items — not current_medications.
 - Provide ONE source object per active_problem, not one source for the whole \
 list. If two problems are on the same line, cite that line number twice with \
 different quoted_text for each problem.
+- CRITICAL — Diagnosis vs Finding: Do not extract clinical findings or symptoms \
+(e.g., "ST depression", "elevated JVP", "wheeze") as active problems. Active \
+problems must be explicit diagnoses (e.g., "Decompensated heart failure").
+- CRITICAL — Inference: Do NOT infer a diagnosis from an abnormal lab result \
+or finding. (e.g., High Trop I does not mean you extract "ACS" unless explicitly \
+written as a diagnosis).
+- CRITICAL — Differentials: Do not extract differential or suspected diagnoses \
+(e.g., "query PE", "r/o appendicitis") as active problems. Only extract confirmed \
+active problems.
 
 Clinical notes (line-tagged):
 ---
@@ -448,6 +457,15 @@ Rules:
    format required by the main extraction schema (with line_number and \
    quoted_text for each item).
 4. For extra sections, preserve the section_label and quoted_text as-is.
+5. CRITICAL — Diagnosis vs Finding: Do not extract clinical findings or symptoms \
+   (e.g., "ST depression", "elevated JVP") as active problems. Active \
+   problems must be explicit diagnoses (e.g., "Decompensated heart failure").
+6. CRITICAL — Inference: Do NOT infer a diagnosis from an abnormal lab result \
+   or finding. (e.g., High Trop I does not mean you extract "ACS" unless explicitly \
+   written).
+7. CRITICAL — Differentials: Do not extract differential or suspected diagnoses \
+   (e.g., "query PE", "r/o appendicitis") as active problems. Only extract confirmed \
+   active problems.
 
 Return ONLY a valid JSON object with exactly these top-level keys:
 {{
