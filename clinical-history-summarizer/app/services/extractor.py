@@ -90,13 +90,30 @@ The JSON must match this exact structure:
   "patient_id": "{patient_id}",
   "chief_complaint": "string or null",
   "chief_complaint_source": {{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}} or null,
-  "active_problems": ["string"],
-  "active_problems_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
+  "documented_conditions": ["string"],
+  "documented_conditions_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
+  "symptoms": ["string"],
+  "symptoms_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
+  "clinical_findings": ["string"],
+  "clinical_findings_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
+  "pertinent_negatives": ["string"],
+  "pertinent_negatives_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
+  "risk_factors": ["string"],
+  "risk_factors_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
   "current_medications": [
     {{
-      "name": "string",
+      "drug": "string",
       "dose": "string or null",
-      "timing": "string or null",
+      "route": "string or null",
+      "frequency": "string or null",
+      "status": "string (Current, Started, Stopped, Held, PRN, Historical, Unknown) or null",
+      "uncertainty": "string or null",
       "source": {{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}} or null
     }}
   ],
@@ -104,38 +121,52 @@ The JSON must match this exact structure:
     {{
       "test_name": "string",
       "value": "string or null",
+      "unit": "string or null",
+      "reference_range": "string or null",
       "date": "string or null",
+      "abnormality": "string or null",
       "source": {{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}} or null
     }}
   ],
-  "allergies": ["string"],
-  "allergies_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  "allergies": [
+    {{
+      "allergen": "string",
+      "reaction": "string or null",
+      "status": "string or null",
+      "source": {{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}} or null
+    }}
+  ],
+  "clinical_impression": "string or null",
+  "clinical_impression_source": {{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}} or null,
+  
+  "differential_diagnoses": ["string"],
+  "differential_diagnoses_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
   "pending_items": ["string"],
+  "red_flags": ["string"],
+  "red_flags_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
+  "uncertainties": ["string"],
+  "uncertainties_sources": [{{"document_id": "notes", "line_number": <int>, "quoted_text": "<verbatim>"}}],
+  
   "unverified_fields": []
 }}
 
 Rules:
-- quoted_text must be EXACTLY copied from the source line. Do not paraphrase \
-or alter capitalisation/punctuation.
+- MOST IMPORTANT RULE: Never treat an inference as a documented fact. Never treat missing information as a negative finding. Never silently resolve uncertainty. Preserve clinically relevant information even when it does not fit a predefined field.
+- quoted_text must be EXACTLY copied from the source line. Do not paraphrase or alter capitalisation/punctuation.
 - Do not include the [Ln] tag itself in quoted_text.
-- If information is missing, use null or []. Never guess or invent facts.
-- CRITICAL — current_medications: only include medications the patient was \
-ALREADY taking BEFORE this clinical encounter. If the notes say "None regular" \
-or similar under medications, set current_medications to []. Any drug that was \
-just commenced, started, or prescribed during this encounter belongs in \
-pending_items — not current_medications.
-- Provide ONE source object per active_problem, not one source for the whole \
-list. If two problems are on the same line, cite that line number twice with \
-different quoted_text for each problem.
-- CRITICAL — Diagnosis vs Finding: Do not extract clinical findings or symptoms \
-(e.g., "ST depression", "elevated JVP", "wheeze") as active problems. Active \
-problems must be explicit diagnoses (e.g., "Decompensated heart failure").
-- CRITICAL — Inference: Do NOT infer a diagnosis from an abnormal lab result \
-or finding. (e.g., High Trop I does not mean you extract "ACS" unless explicitly \
-written as a diagnosis).
-- CRITICAL — Differentials: Do not extract differential or suspected diagnoses \
-(e.g., "query PE", "r/o appendicitis") as active problems. Only extract confirmed \
-active problems.
+- CRITICAL — current_medications: extract all documented medications. Use the 'uncertainty' field if dose/route is unsure.
+- CRITICAL — Diagnosis vs Finding vs Symptom: 
+   * Symptoms (e.g., "chest pain", "diaphoresis") go to symptoms.
+   * Clinical findings (e.g., "ST depression", "elevated JVP") go to clinical_findings.
+   * Documented conditions (e.g., "Decompensated heart failure", "T2DM") go to documented_conditions.
+   * Risk factors (e.g., "former smoker") go to risk_factors.
+- CRITICAL — Inference: Do NOT infer a diagnosis from an abnormal lab result or finding.
+- CRITICAL — Differentials: Put differential or suspected diagnoses (e.g., "query PE", "r/o appendicitis") in differential_diagnoses, NOT documented_conditions.
+- pertinent_negatives: Extract explicitly documented absent findings (e.g., "No flank pain"). NEVER treat "not mentioned" as negative.
+- red_flags: Extract explicitly documented concerning signs (e.g. "Hemodynamic instability", "Fever").
+- uncertainties: If the text says the patient or doctor is unsure (e.g., "patient says 5 or 10mg, not certain", "unknown if allergic"), extract that into uncertainties.
 
 Clinical notes (line-tagged):
 ---
@@ -350,7 +381,7 @@ def generate_patient_friendly_summary(
     Returns:
         A plain-text string suitable for showing directly to a patient.
     """
-    client = _make_client()
+    client = _get_client()
 
     # Build a trimmed view of the summary — only verified, non-empty data
     skip = set(summary.unverified_fields) | set(summary.missing_fields)
@@ -444,41 +475,55 @@ of sections identified in a clinical document (Step 1 output) and you must \
 now map each section to the closest standard clinical schema field.
 
 The standard fields are:
-  chief_complaint, active_problems, current_medications, recent_labs, \
-  allergies, pending_items
+  chief_complaint, clinical_impression, documented_conditions, symptoms, \
+  clinical_findings, pertinent_negatives, risk_factors, differential_diagnoses, \
+  red_flags, current_medications, recent_labs, \
+  allergies, pending_items, uncertainties
 
 Rules:
 1. Map each section_label to one of the standard fields above ONLY if \
-   the mapping is clear and obvious (e.g. "medications" → \
-   "current_medications", "presenting_complaint" → "chief_complaint").
+   the mapping is clear and obvious.
 2. If a section does NOT clearly map to any standard field, mark it \
    as "extra" — it will go into raw_extra_fields.
 3. For mapped sections, extract the data in exactly the same citation \
-   format required by the main extraction schema (with line_number and \
-   quoted_text for each item).
+   format required by the main extraction schema.
 4. For extra sections, preserve the section_label and quoted_text as-is.
-5. CRITICAL — Diagnosis vs Finding: Do not extract clinical findings or symptoms \
-   (e.g., "ST depression", "elevated JVP") as active problems. Active \
-   problems must be explicit diagnoses (e.g., "Decompensated heart failure").
-6. CRITICAL — Inference: Do NOT infer a diagnosis from an abnormal lab result \
-   or finding. (e.g., High Trop I does not mean you extract "ACS" unless explicitly \
-   written).
-7. CRITICAL — Differentials: Do not extract differential or suspected diagnoses \
-   (e.g., "query PE", "r/o appendicitis") as active problems. Only extract confirmed \
-   active problems.
+5. MOST IMPORTANT RULE: Never treat an inference as a documented fact. Never treat missing information as a negative finding. Never silently resolve uncertainty. Preserve clinically relevant information even when it does not fit a predefined field.
+6. CRITICAL — Diagnosis vs Finding vs Symptom: 
+   * Symptoms (e.g., "chest pain", "diaphoresis") go to symptoms.
+   * Clinical findings (e.g., "ST depression", "elevated JVP") go to clinical_findings.
+   * Documented conditions (e.g., "Decompensated heart failure", "T2DM") go to documented_conditions.
+   * Risk factors (e.g., "former smoker") go to risk_factors.
+7. CRITICAL — Inference: Do NOT infer a diagnosis from an abnormal lab result or finding.
+8. CRITICAL — Differentials: Put differential or suspected diagnoses (e.g., "query PE", "r/o appendicitis") in differential_diagnoses, NOT documented_conditions.
 
 Return ONLY a valid JSON object with exactly these top-level keys:
 {{
   "patient_id": "{patient_id}",
   "chief_complaint": string or null,
   "chief_complaint_source": {{"document_id":"notes","line_number":N,"quoted_text":"..."}} or null,
-  "active_problems": [...],
-  "active_problems_sources": [...],
-  "current_medications": [...each with name/dose/timing/source...],
-  "recent_labs": [...each with test_name/value/date/source...],
-  "allergies": [...],
-  "allergies_sources": [...],
+  "clinical_impression": string or null,
+  "clinical_impression_source": {{"document_id":"notes","line_number":N,"quoted_text":"..."}} or null,
+  "documented_conditions": [...],
+  "documented_conditions_sources": [...],
+  "symptoms": [...],
+  "symptoms_sources": [...],
+  "clinical_findings": [...],
+  "clinical_findings_sources": [...],
+  "pertinent_negatives": [...],
+  "pertinent_negatives_sources": [...],
+  "risk_factors": [...],
+  "risk_factors_sources": [...],
+  "differential_diagnoses": [...],
+  "differential_diagnoses_sources": [...],
+  "red_flags": [...],
+  "red_flags_sources": [...],
+  "current_medications": [...each with drug/dose/route/frequency/status/uncertainty/source...],
+  "recent_labs": [...each with test_name/value/unit/reference_range/date/abnormality/source...],
+  "allergies": [...each with allergen/reaction/status/source...],
   "pending_items": [...strings...],
+  "uncertainties": [...],
+  "uncertainties_sources": [...],
   "unverified_fields": [],
   "missing_fields": [],
   "raw_extra_fields": {{

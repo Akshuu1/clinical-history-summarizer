@@ -112,27 +112,37 @@ def validate_source_references(
             if "chief_complaint" not in unverified:
                 unverified.append("chief_complaint")
 
-    # ── active_problems ───────────────────────────────────────────────────────
-    for idx in range(len(s.active_problems)):
-        # Source list may be shorter than the problems list
-        ref = s.active_problems_sources[idx] if idx < len(s.active_problems_sources) else None
-        if not _citation_passes(ref, lines):
-            # Null out the source slot if it exists
-            if idx < len(s.active_problems_sources):
-                s.active_problems_sources[idx] = None   # type: ignore[assignment]
-            field_key = f"active_problems[{idx}]"
-            if field_key not in unverified:
-                unverified.append(field_key)
+    # ── clinical_impression ───────────────────────────────────────────────────
+    if s.clinical_impression is not None:
+        if not _citation_passes(s.clinical_impression_source, lines):
+            s.clinical_impression_source = None
+            if "clinical_impression" not in unverified:
+                unverified.append("clinical_impression")
+
+    # Helper for generic list+source fields
+    def _validate_list_with_sources(field_name: str, item_list: list[str], source_list: list):
+        for idx in range(len(item_list)):
+            ref = source_list[idx] if idx < len(source_list) else None
+            if not _citation_passes(ref, lines):
+                if idx < len(source_list):
+                    source_list[idx] = None
+                field_key = f"{field_name}[{idx}]"
+                if field_key not in unverified:
+                    unverified.append(field_key)
+
+    _validate_list_with_sources("documented_conditions", s.documented_conditions, s.documented_conditions_sources)
+    _validate_list_with_sources("symptoms", s.symptoms, s.symptoms_sources)
+    _validate_list_with_sources("clinical_findings", s.clinical_findings, s.clinical_findings_sources)
+    _validate_list_with_sources("pertinent_negatives", s.pertinent_negatives, s.pertinent_negatives_sources)
+    _validate_list_with_sources("risk_factors", s.risk_factors, s.risk_factors_sources)
+    _validate_list_with_sources("differential_diagnoses", s.differential_diagnoses, s.differential_diagnoses_sources)
+    _validate_list_with_sources("red_flags", s.red_flags, s.red_flags_sources)
+    _validate_list_with_sources("uncertainties", s.uncertainties, s.uncertainties_sources)
 
     # ── current_medications ───────────────────────────────────────────────────
     for idx, med in enumerate(s.current_medications):
         if not _citation_passes(med.source, lines):
-            s.current_medications[idx] = MedicationItem(
-                name=med.name,
-                dose=med.dose,
-                timing=med.timing,
-                source=None,
-            )
+            med.source = None
             field_key = f"current_medications[{idx}]"
             if field_key not in unverified:
                 unverified.append(field_key)
@@ -140,34 +150,21 @@ def validate_source_references(
     # ── recent_labs ───────────────────────────────────────────────────────────
     for idx, lab in enumerate(s.recent_labs):
         if not _citation_passes(lab.source, lines):
-            s.recent_labs[idx] = LabResult(
-                test_name=lab.test_name,
-                value=lab.value,
-                date=lab.date,
-                source=None,
-            )
+            lab.source = None
             field_key = f"recent_labs[{idx}]"
             if field_key not in unverified:
                 unverified.append(field_key)
 
     # ── allergies ─────────────────────────────────────────────────────────────
-    for idx in range(len(s.allergies)):
-        ref = s.allergies_sources[idx] if idx < len(s.allergies_sources) else None
-        if not _citation_passes(ref, lines):
-            if idx < len(s.allergies_sources):
-                s.allergies_sources[idx] = None   # type: ignore[assignment]
+    for idx, allergy in enumerate(s.allergies):
+        if not _citation_passes(allergy.source, lines):
+            allergy.source = None
             field_key = f"allergies[{idx}]"
             if field_key not in unverified:
                 unverified.append(field_key)
 
-    # If allergies is empty (NKDA), strip any orphan sources the LLM attached.
-    # Keeping them would be misleading — they look like citations for allergens
-    # that don't exist in the list.
-    if not s.allergies:
-        s.allergies_sources = []
-
     # ── pending_items ─────────────────────────────────────────────────────────
-    # No source citations are tracked for pending items (by design — Prompt 2.1).
+    # No source citations are tracked for pending items (by design).
 
     # Deduplicate while preserving insertion order
     s.unverified_fields = list(dict.fromkeys(unverified))
@@ -185,13 +182,6 @@ def validate_summary(
     summary: ClinicalSummary,
     normalised_lines: list[str],
 ) -> ClinicalSummary:
-    """
-    Deprecated alias for validate_source_references().
-
-    Accepts the old `normalised_lines: list[str]` signature for
-    backwards-compatibility with the route layer.  Internally delegates
-    to validate_source_references() by joining the lines.
-    """
     raw_notes = "\n".join(normalised_lines)
     return validate_source_references(summary, raw_notes)
 
@@ -200,59 +190,34 @@ def validate_summary(
 # Missing field detection
 # ---------------------------------------------------------------------------
 def detect_missing_fields(s: ClinicalSummary) -> ClinicalSummary:
-    """
-    Populate `missing_fields` with the names of core fields that appear
-    to be entirely absent from the notes.
-
-    A field is "missing" (not just empty) when:
-      - Its value is empty / None   AND
-      - The LLM never cited any source line for it   AND
-      - It is not already in unverified_fields (which means at least
-        something was found — just unconfirmable)
-
-    This is distinct from unverified_fields:
-      unverified = found something, but citation is bad
-      missing    = the doctor simply didn't write anything for this category
-    """
     missing: list[str] = []
     already_flagged = set(s.unverified_fields)
 
-    # chief_complaint: missing if None AND no source was even attempted
-    if (
-        s.chief_complaint is None
-        and s.chief_complaint_source is None
-        and "chief_complaint" not in already_flagged
-    ):
-        missing.append("chief_complaint")
+    def _check_missing_single(field_name: str, val, source):
+        if val is None and source is None and field_name not in already_flagged:
+            missing.append(field_name)
 
-    # active_problems: missing if empty AND no sources were cited
-    if (
-        not s.active_problems
-        and not s.active_problems_sources
-        and not any(f.startswith("active_problems") for f in already_flagged)
-    ):
-        missing.append("active_problems")
+    def _check_missing_list(field_name: str, item_list, source_list=None):
+        if not item_list and (source_list is None or not source_list):
+            if not any(f.startswith(field_name) for f in already_flagged):
+                missing.append(field_name)
 
-    # current_medications: missing if empty list with no prior citation attempts
-    if (
-        not s.current_medications
-        and not any(f.startswith("current_medications") for f in already_flagged)
-    ):
-        missing.append("current_medications")
-
-    # recent_labs: missing if empty list with no prior citation attempts
-    if (
-        not s.recent_labs
-        and not any(f.startswith("recent_labs") for f in already_flagged)
-    ):
-        missing.append("recent_labs")
-
-    # allergies: only flag as missing if empty AND allergies_sources is also
-    # empty (NKDA cases will have allergies=[] but allergies_sources was
-    # non-empty before the orphan cleanup — we can't re-detect that here,
-    # so we skip allergies to avoid false positives on NKDA)
-    # pending_items: no source citations tracked, so we can't distinguish
-    # "not mentioned" from "not applicable" — skip
+    _check_missing_single("chief_complaint", s.chief_complaint, s.chief_complaint_source)
+    _check_missing_single("clinical_impression", s.clinical_impression, s.clinical_impression_source)
+    
+    _check_missing_list("documented_conditions", s.documented_conditions, s.documented_conditions_sources)
+    _check_missing_list("symptoms", s.symptoms, s.symptoms_sources)
+    _check_missing_list("clinical_findings", s.clinical_findings, s.clinical_findings_sources)
+    _check_missing_list("pertinent_negatives", s.pertinent_negatives, s.pertinent_negatives_sources)
+    _check_missing_list("risk_factors", s.risk_factors, s.risk_factors_sources)
+    _check_missing_list("differential_diagnoses", s.differential_diagnoses, s.differential_diagnoses_sources)
+    _check_missing_list("red_flags", s.red_flags, s.red_flags_sources)
+    _check_missing_list("uncertainties", s.uncertainties, s.uncertainties_sources)
+    
+    _check_missing_list("current_medications", s.current_medications)
+    _check_missing_list("recent_labs", s.recent_labs)
+    _check_missing_list("allergies", s.allergies)
 
     s.missing_fields = missing
     return s
+

@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+@layer base {
+  :root {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  min-height: 100vh;
+  background-image: 
+    radial-gradient(circle at 85% 15%, rgba(20, 184, 166, 0.12), transparent 40%),
+    radial-gradient(circle at 15% 85%, rgba(16, 185, 129, 0.08), transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(244, 63, 94, 0.05), transparent 50%);
+  background-attachment: fixed;
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-zinc-950/60 backdrop-blur-2xl border border-white/5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.4)];
+  }
+  .animate-pulse-red {
+    animation: pulse-red 2s infinite;
+  }
+}
+
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* Custom Scrollbar for inner elements */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

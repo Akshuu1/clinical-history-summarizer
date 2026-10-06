@@ -91,7 +91,16 @@ def _compute_stats(summary: ClinicalSummary) -> SummaryStats:
     total = 0
     if summary.chief_complaint is not None:
         total += 1
-    total += len(summary.active_problems)
+    if summary.clinical_impression is not None:
+        total += 1
+    total += len(summary.documented_conditions)
+    total += len(summary.symptoms)
+    total += len(summary.clinical_findings)
+    total += len(summary.pertinent_negatives)
+    total += len(summary.risk_factors)
+    total += len(summary.differential_diagnoses)
+    total += len(summary.red_flags)
+    total += len(summary.uncertainties)
     total += len(summary.current_medications)
     total += len(summary.recent_labs)
     total += len(summary.allergies)
