@@ -1,0 +1,36 @@
+Patient: SYNTH-001 | DOB: 1965-03-14 | MRN: SYN0001
+Date of Admission: 2024-09-15 | Ward: Emergency Department
+
+CHIEF COMPLAINT:
+Patient presents with acute chest pain radiating to the left arm, onset 2 hours ago.
+
+ALLERGIES:
+- Penicillin: anaphylaxis (documented 2019)
+- Aspirin: GI upset
+
+CURRENT MEDICATIONS:
+- Metformin 500mg twice daily (oral)
+- Atorvastatin 40mg once at night (oral)
+- Amlodipine 5mg once daily (oral)
+
+HISTORY OF PRESENT ILLNESS:
+60-year-old male with known T2DM and hypertension presents with chest pain.
+Pain described as 8/10, pressure-like, with diaphoresis and nausea.
+No fever. No cough. No shortness of breath at rest.
+
+ACTIVE PROBLEMS:
+1. Acute coronary syndrome (rule-out)
+2. Type 2 Diabetes Mellitus — on Metformin
+3. Hypertension — on Amlodipine
+
+RECENT INVESTIGATIONS:
+ECG: ST depression in V4-V6 (done at 14:30 today)
+Troponin I: 0.08 ng/mL (HIGH) — collected 2024-09-15 at 14:45
+HbA1c: 7.9% — dated 2024-08-01
+Serum Creatinine: 1.1 mg/dL — dated 2024-09-15
+Blood Glucose: 210 mg/dL (HIGH) — dated 2024-09-15
+
+PENDING:
+- Repeat Troponin at 3h (due 17:45)
+- Cardiology consult requested
+- Echo scheduled for tomorrow morning

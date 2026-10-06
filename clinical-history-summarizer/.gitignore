@@ -1,0 +1,47 @@
+# ─── Secrets ───────────────────────────────────────────────────────────────────
+.env
+
+# ─── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+.eggs/
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Node / Next.js ────────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.npm
+*.tsbuildinfo
+
+# ─── Database ──────────────────────────────────────────────────────────────────
+*.db
+*.sqlite3
+
+# ─── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ─── Reports (generated) ───────────────────────────────────────────────────────
+reports/evaluation_report.json
+
+# ─── Alembic ───────────────────────────────────────────────────────────────────
+migrations/__pycache__/
+migrations/versions/__pycache__/

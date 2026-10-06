@@ -1,0 +1,38 @@
+NEPHROLOGY CONSULT NOTE
+Patient: SYNTH-011 | 67F | Date: 2024-10-01
+
+Referral reason: Worsening renal function — creatinine rise from 145 to 312 umol/L over 6 weeks.
+
+Allergies: Contrast dye (anaphylactoid reaction — documented). NSAIDs (worsens renal function — avoid).
+
+Background:
+- CKD Stage 3b (baseline Cr ~145, eGFR ~35) — diagnosed 2021
+- T2DM on insulin
+- Hypertension
+- Cardiac failure (EF 40% on echo 2023)
+
+Current medications:
+- Insulin Glargine 18 units SC ON
+- Amlodipine 10mg OD
+- Furosemide 80mg OD
+- Carvedilol 12.5mg BD
+- Allopurinol 100mg OD
+- Calcium carbonate 500mg TDS with meals (phosphate binder)
+- Erythropoietin 4000 units SC weekly
+
+Labs (today):
+- Creatinine: 312 umol/L (HIGH) — 2024-10-01
+- eGFR: 16 mL/min/1.73m2 (LOW — CRITICAL decline)
+- K: 6.1 mmol/L (HIGH — hyperkalaemia)
+- Hb: 9.1 g/dL (LOW — anaemia of CKD)
+- Urine protein:creatinine ratio 480 mg/mmol (HIGH — significant proteinuria)
+- eGFR trend: 35 → 28 → 16 over 6 weeks (rapid decline)
+
+Assessment: Acute-on-chronic kidney disease. Likely cause: volume depletion (furosemide overdose?) vs. disease progression vs. ATN.
+
+Pending:
+- Renal ultrasound (avoid contrast given allergy)
+- Review furosemide dose — consider reducing
+- AV fistula planning referral (if trajectory continues)
+- Dietitian referral (low-potassium, low-phosphate diet)
+- Start sodium bicarbonate 500mg BD for acidosis

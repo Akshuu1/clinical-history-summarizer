@@ -1,0 +1,41 @@
+GERIATRIC FALLS ASSESSMENT
+Patient: SYNTH-014 | 82F | Date: 2024-10-02
+
+CC: Third fall in 6 weeks. No loss of consciousness. Minor bruising.
+
+Allergies: Aspirin (asthma exacerbation). ACE inhibitors (angioedema — documented).
+
+Medications (home — verified with carer):
+- Bisoprolol 5mg OD
+- Lercanidipine 10mg OD
+- Simvastatin 20mg ON
+- Omeprazole 20mg OD
+- Mirtazapine 15mg ON (for depression + sleep)
+- Zopiclone 3.75mg ON PRN (patient using nightly — CONCERN: fall risk)
+- Calcium + Vitamin D 500mg/800IU OD
+
+Falls risk factors identified:
+- Polypharmacy (7 medications)
+- Zopiclone use — nightly (not PRN as prescribed) — HIGH FALL RISK
+- Postural hypotension: BP sitting 138/82, standing 104/62 (>20mmHg systolic drop)
+- Mirtazapine — sedating, contributes to fall risk
+
+Active problems:
+- Recurrent falls (x3 in 6 weeks)
+- Postural hypotension
+- Depression (on Mirtazapine)
+- Osteoporosis (DEXA T-score -2.8 lumbar — 2023)
+
+Labs:
+- Vitamin D: 32 nmol/L (LOW — target >75)
+- PTH: 68 pg/mL (HIGH — secondary hyperparathyroidism)
+- TSH: 2.1 mIU/L (normal)
+- Creatinine: 95 umol/L
+
+Pending:
+- Zopiclone taper and discontinuation plan
+- Physiotherapy — balance and gait training
+- DEXA repeat (last 2023)
+- Consider bisphosphonate for osteoporosis
+- OT home assessment
+- Increase Vitamin D to 2000IU OD

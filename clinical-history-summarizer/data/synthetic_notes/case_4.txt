@@ -1,0 +1,33 @@
+PAEDIATRIC ED NOTE
+Patient: SYNTH-004 | Age: 7 years, Male | Weight: 22kg
+Date: 2024-09-20
+
+CC: Fever 39.5°C x 2 days, ear pain right side, reduced hearing.
+
+Allergies: Amoxicillin (urticaria — age 4)
+
+Medications: None regular.
+
+History: Mother reports child pulling at right ear for 2 days.
+Fever up to 39.8°C at home. No vomiting. Eating reduced. School-going.
+
+Examination:
+- Tympanic membrane: Right TM red, bulging. Left TM normal.
+- Throat: Mild erythema, no exudate.
+- Lymph nodes: Right submandibular lymphadenopathy.
+
+Active problems:
+- Acute otitis media, right ear (bacterial, probable)
+
+Labs: Not done (clinical diagnosis).
+
+Management:
+- Azithromycin 250mg oral once daily x 5 days (given amoxicillin allergy)
+- Paracetamol 360mg Q6H PRN for fever/pain
+- Ibuprofen 200mg Q8H PRN (with food)
+- Follow up in 3 days or sooner if worsening
+- Audiometry if not resolved in 4 weeks
+
+Pending:
+- Review in 3 days
+- Audiometry if prolonged — outpatient referral

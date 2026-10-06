@@ -1,0 +1,36 @@
+HIV MEDICINE CLINIC NOTE
+Patient: SYNTH-013 | 38M | Date: 2024-10-04
+
+CC: Routine follow-up. New complaint: peripheral neuropathy both feet.
+
+Allergies: Nevirapine (Stevens-Johnson syndrome — 2019, do NOT re-challenge).
+
+ART regimen (stable x 2 years):
+- Tenofovir alafenamide (TAF) 25mg OD
+- Emtricitabine (FTC) 200mg OD
+- Dolutegravir 50mg OD
+
+Other medications:
+- Cotrimoxazole 960mg OD (PCP prophylaxis — CD4 was 180 at last count)
+- Vitamin B complex OD
+
+CD4 and viral load:
+- CD4: 320 cells/uL (up from 180 six months ago) — 2024-10-04
+- Viral load: <20 copies/mL (undetectable) — 2024-10-04
+
+Other labs:
+- Creatinine: 89 umol/L
+- eGFR: 82 mL/min
+- HBsAg: Negative
+- Lipid panel: LDL 3.1, HDL 0.9, TG 2.8 (HIGH) — 2024-10-04
+
+Active problems:
+- HIV-1 infection, on ART, virologically suppressed
+- Peripheral neuropathy (new) — ?cause (ART vs. nutritional vs. other)
+- Hypertriglyceridaemia
+
+Pending:
+- EMG/nerve conduction study — referral made
+- Neurology review
+- Review PCP prophylaxis — consider stopping if CD4 remains >200 x 3 months
+- Fenofibrate 145mg OD — consider for triglycerides (discuss with patient)

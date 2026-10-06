@@ -1,0 +1,53 @@
+{
+  "_instructions": "This is the template for a hand-written gold summary. Copy this file to case_N.json and fill in the correct values by reading the corresponding case_N.txt. Delete this _instructions field. Be precise — these are your ground truth labels.",
+  "patient_id": "case_N",
+  "chief_complaint": {
+    "value": "Exact chief complaint from the note",
+    "source_line": 5,
+    "source_text": "Verbatim text from that line"
+  },
+  "active_problems": [
+    {
+      "value": "Condition name",
+      "source_line": 20,
+      "source_text": "Verbatim text"
+    }
+  ],
+  "current_medications": [
+    {
+      "name": "Drug name",
+      "dose": "dose or null",
+      "frequency": "frequency or null",
+      "route": "oral or null",
+      "source_line": 15,
+      "source_text": "Verbatim text"
+    }
+  ],
+  "allergies": [
+    {
+      "substance": "Allergen",
+      "reaction": "reaction or null",
+      "severity": "severity or null",
+      "source_line": 8,
+      "source_text": "Verbatim text"
+    }
+  ],
+  "recent_labs": [
+    {
+      "test": "Test name",
+      "result": "Result value",
+      "date": "date or null",
+      "unit": "unit or null",
+      "flag": "HIGH/LOW/CRITICAL/NORMAL or null",
+      "source_line": 30,
+      "source_text": "Verbatim text"
+    }
+  ],
+  "pending_items": [
+    {
+      "value": "Pending action or test",
+      "source_line": 40,
+      "source_text": "Verbatim text"
+    }
+  ]
+}

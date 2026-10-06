@@ -1,0 +1,47 @@
+STROKE UNIT ADMISSION
+Patient: SYNTH-012 | 71M | Adm: 2024-09-30 02:15
+
+CC: Sudden onset right arm and leg weakness, facial droop, slurred speech — 1 hour prior to arrival.
+
+Allergies: Warfarin (prior GI bleed — do not re-challenge).
+
+Medications (home):
+- Clopidogrel 75mg OD (secondary prevention — prior TIA 2022)
+- Atorvastatin 80mg ON
+- Lisinopril 10mg OD
+- Amlodipine 5mg OD
+
+Exam (on arrival):
+- NIHSS: 14 (moderate-severe stroke)
+- Right hemiparesis (3/5 power)
+- Right facial droop
+- Dysarthria
+- No neglect, visual fields intact
+
+Imaging:
+- CT Brain (non-contrast) 2024-09-30 02:40: No haemorrhage. Hyperdense MCA sign left.
+- CT Angiography: Left MCA M1 occlusion.
+
+Active problems:
+- Acute ischaemic stroke — left MCA territory
+- Hypertension
+- Hyperlipidaemia
+- Prior TIA (2022)
+
+Thrombolysis:
+- IV Alteplase 0.9mg/kg administered 2024-09-30 03:05 (onset to needle: 50 mins)
+- BP post-thrombolysis: 148/88 — monitoring Q15min
+
+Labs:
+- Glucose: 6.8 mmol/L
+- INR: 1.0 (not anticoagulated at admission)
+- Plt: 210 x10^9/L
+- LDL: 3.8 mmol/L (HIGH)
+
+Pending:
+- Mechanical thrombectomy assessment by IR team — urgent
+- MRI Brain with DWI — when stable
+- Swallow assessment — SALT referral
+- Physio + OT assessment
+- Echo to rule out cardioembolic source
+- Neurology review

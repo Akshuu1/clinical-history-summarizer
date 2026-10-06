@@ -1,0 +1,32 @@
+TRIAGE NOTE — ED
+Time: 03:42
+Patient: SYNTH-008 | Approx 50s, Male | No ID presented
+
+CC: Found unconscious by bystanders. GCS 10/15 on arrival.
+
+Bystander reports possible alcohol ingestion. Unknown medical history.
+
+No medication list available.
+
+Allergies: Unknown.
+
+Vitals:
+- BP: 88/52 mmHg (LOW)
+- HR: 118 bpm
+- SpO2: 94% on 4L O2
+- Temp: 36.1°C
+- RR: 22
+
+Brief exam: Pupils equal and reactive. No external trauma. Breath smells of alcohol.
+
+Labs pending (sent):
+- Glucose stat: 3.1 mmol/L (LOW)
+- Blood cultures x2
+- Toxicology screen
+- ABG — result awaited
+- Ethanol level — result awaited
+
+Plan:
+- IV dextrose 50mL of 50% — given now
+- IV fluids — 0.9% NaCl 1L wide open
+- Monitor, reassess GCS in 30 mins

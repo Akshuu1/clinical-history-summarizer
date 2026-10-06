@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: clinical-summarizer-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clinical-summarizer-db
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: APP_ENV
+        value: production
+
+databases:
+  - name: clinical-summarizer-db
+    databaseName: clinical_summarizer
+    plan: free

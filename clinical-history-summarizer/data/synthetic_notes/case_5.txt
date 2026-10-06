@@ -1,0 +1,43 @@
+POST-OPERATIVE NOTE — Day 1
+Patient: SYNTH-005 | 55F | DOB: 1969-07-22
+Procedure: Laparoscopic cholecystectomy for acute cholecystitis
+Date of surgery: 2024-09-18
+
+Allergies: Latex (contact dermatitis — documented, latex-free protocol in place)
+           Morphine (nausea and vomiting)
+
+Pre-op medications (home):
+- Metformin 1000mg BD — HELD peri-operatively
+- Ramipril 5mg OD — HELD peri-operatively
+- Rosuvastatin 20mg ON — continued
+
+Post-op medications:
+- Paracetamol 1g QID IV x 24h then oral
+- Ondansetron 4mg IV TDS PRN nausea
+- Enoxaparin 40mg SC OD (DVT prophylaxis)
+- Tramadol 50mg oral Q6H PRN (morphine allergy — tramadol used instead)
+
+Current status:
+- Tolerating sips, no nausea
+- Drain output 30mL sero-sanguineous
+- Wound: intact, no bleeding
+- Ambulating with help
+
+Active problems:
+- Day 1 post laparoscopic cholecystectomy
+- T2DM (metformin held)
+- Hypertension (ramipril held)
+- Latex allergy (protocol active)
+
+Labs (post-op day 1):
+- Hb: 10.2 g/dL (LOW)
+- WBC: 14.3 x10^9/L (HIGH — expected post-operative)
+- CRP: 87 mg/L (HIGH)
+- LFTs: ALT 42, AST 38, ALP 95, Bilirubin 18 — all within normal limits
+
+Pending:
+- Histopathology of gallbladder specimen
+- Resume Metformin when eating fully
+- Resume Ramipril when BP stable
+- Drain removal if output <20mL/24h
+- Dietician referral — post-op

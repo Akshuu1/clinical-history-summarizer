@@ -1,0 +1,41 @@
+ONCOLOGY WARD ROUND
+Patient: SYNTH-007 | 62M | Adm: 2024-10-03
+
+Diagnosis: Non-small cell lung cancer (NSCLC), adenocarcinoma, Stage IIIB
+EGFR mutation: Exon 19 deletion (confirmed 2024-08-15)
+
+Chief complaint: Worsening dyspnoea and haemoptysis x 1 week.
+
+Allergies: Cisplatin (nephrotoxicity — previous cycle)
+
+Current oncology medications:
+- Osimertinib 80mg oral once daily (EGFR-targeted therapy)
+- Dexamethasone 4mg BD oral (anti-oedema)
+- Ondansetron 8mg TDS oral PRN
+
+Supportive medications:
+- Omeprazole 20mg OD
+- Enoxaparin 60mg SC OD (VTE prophylaxis — active cancer)
+- Morphine SR 10mg BD (pain)
+- Morphine IR 5mg Q4H PRN (breakthrough)
+
+Active problems:
+- NSCLC Stage IIIB on Osimertinib — cycle 3
+- Haemoptysis (under investigation)
+- Moderate pleural effusion (right) — on imaging 2024-10-02
+- VTE prophylaxis
+
+Labs:
+- Hb: 9.8 g/dL (LOW — chronic disease anaemia)
+- WBC: 3.2 x10^9/L (LOW)
+- Plt: 88 x10^9/L (LOW)
+- Creatinine: 105 umol/L
+- LDH: 320 U/L (HIGH)
+
+Imaging: CT Chest 2024-10-02 — increased right pleural effusion, stable primary tumour.
+
+Pending:
+- Bronchoscopy — scheduled 2024-10-07
+- Haematology review (pancytopenia)
+- Repeat CT in 6 weeks
+- Palliative care team involvement — referral made

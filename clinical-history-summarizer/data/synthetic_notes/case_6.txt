@@ -1,0 +1,34 @@
+ADMISSION SUMMARY — Internal Medicine
+Patient: SYNTH-006 | 34F | Adm: 2024-10-05
+
+Reason for admission: Deliberate self-harm (superficial lacerations), now medically stable.
+Also presenting with poorly controlled Type 1 Diabetes.
+
+Allergies: No known drug allergies.
+
+Psychiatric medications (confirmed with psychiatrist on call):
+- Sertraline 100mg once daily oral
+- Quetiapine 50mg at night oral
+- Diazepam 5mg PRN (not to exceed 10mg/day)
+
+Diabetes medications:
+- Insulin Glargine 24 units SC at night
+- Insulin Novorapid — sliding scale (see chart)
+
+Active problems:
+- Type 1 Diabetes Mellitus — poorly controlled (HbA1c 10.2% — 2024-09-01)
+- Major Depressive Disorder — under psychiatric care
+- Borderline Personality Disorder (diagnosed 2021)
+
+Labs:
+- Glucose: 21.4 mmol/L (HIGH) — 2024-10-05
+- HbA1c: 10.2% — 2024-09-01
+- Ketones (urine): negative — 2024-10-05
+- Creatinine: 82 umol/L
+- eGFR: >90 mL/min
+
+Pending:
+- Psychiatric review — expected morning ward round tomorrow
+- Diabetes nurse educator review
+- Social work referral (housing instability noted)
+- Safe discharge planning — not for same-day discharge
