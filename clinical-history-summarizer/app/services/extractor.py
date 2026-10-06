@@ -557,7 +557,7 @@ def extract_summary_two_stage(raw_notes: str, patient_id: str) -> "ClinicalSumma
     Keeps extract_summary_with_sources() unchanged — this is an
     alternative, not a replacement.
     """
-    client = _make_client()
+    client = _get_client()
 
     # Pre-process: tag lines [L1], [L2], ...
     lines = raw_notes.splitlines()

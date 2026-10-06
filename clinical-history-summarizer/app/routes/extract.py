@@ -314,5 +314,5 @@ def get_summary(
         verified_count=row.verified_count,
         unverified_count=row.unverified_count,
         created_at=row.created_at.isoformat(),
-        summary=ClinicalSummary(**row.summary_json),
+        summary=ClinicalSummary(**row.summary_json),  # type: ignore
     )

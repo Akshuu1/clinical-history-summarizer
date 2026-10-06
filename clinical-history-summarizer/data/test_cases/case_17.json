@@ -1,0 +1,204 @@
+{
+  "raw_notes": "Patient Name: Jane Doe\nDOB: 01/15/1975\n\n**Subjective:**\nPatient presents with general malaise and fatigue for the past 3 days. She reports a cough, which she describes as 'dry and irritating'. She thinks she might have had a fever yesterday, 'around 100 degrees, but not sure if it was exactly 100'. Reports she's been taking Tylenol, 500 mg every 6 hours, for the malaise. She states she has an allergy to 'penicillin or maybe amoxicillin, not sure which one, but it caused a rash last time'. No other medical history reported. Denies shortness of breath. No known drug allergies besides the uncertain penicillin/amoxicillin. Last menstrual period 2 weeks ago.\n\n**Objective:**\nGeneral: Appears tired but in no acute distress.\nLungs: Clear to auscultation bilaterally. No wheezes or crackles.\nThroat: Mild erythema, no exudates.\n\n**Assessment:**\nAcute bronchitis, likely viral.\n\n**Plan:**\n1. Continue supportive care. \n2. Consider chest X-ray if cough worsens.\n3. Patient to follow up in 5 days or sooner if symptoms change.",
+  "gold_summary": {
+    "patient_id": "CASE_17",
+    "chief_complaint": "general malaise and fatigue",
+    "chief_complaint_source": {
+      "document_id": "notes",
+      "line_number": 5,
+      "quoted_text": "Patient presents with general malaise and fatigue for the past 3 days."
+    },
+    "documented_conditions": [
+      "Acute bronchitis"
+    ],
+    "documented_conditions_sources": [
+      {
+        "document_id": "notes",
+        "line_number": 19,
+        "quoted_text": "Acute bronchitis, likely viral."
+      }
+    ],
+    "symptoms": [
+      "general malaise",
+      "fatigue",
+      "cough",
+      "dry and irritating cough",
+      "fever",
+      "rash",
+      "Mild erythema"
+    ],
+    "symptoms_sources": [
+      {
+        "document_id": "notes",
+        "line_number": 5,
+        "quoted_text": "general malaise"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 5,
+        "quoted_text": "fatigue"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 5,
+        "quoted_text": "a cough"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 5,
+        "quoted_text": "dry and irritating"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 6,
+        "quoted_text": "had a fever yesterday, 'around 100 degrees, but not sure if it was exactly 100'."
+      },
+      {
+        "document_id": "notes",
+        "line_number": 8,
+        "quoted_text": "caused a rash last time"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 16,
+        "quoted_text": "Mild erythema"
+      }
+    ],
+    "clinical_findings": [
+      "Appears tired",
+      "in no acute distress",
+      "Lungs: Clear to auscultation bilaterally",
+      "No wheezes",
+      "No crackles",
+      "Throat: Mild erythema, no exudates"
+    ],
+    "clinical_findings_sources": [
+      {
+        "document_id": "notes",
+        "line_number": 14,
+        "quoted_text": "Appears tired"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 14,
+        "quoted_text": "in no acute distress"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 15,
+        "quoted_text": "Lungs: Clear to auscultation bilaterally."
+      },
+      {
+        "document_id": "notes",
+        "line_number": 15,
+        "quoted_text": "No wheezes"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 15,
+        "quoted_text": "or crackles"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 16,
+        "quoted_text": "Throat: Mild erythema, no exudates."
+      }
+    ],
+    "pertinent_negatives": [
+      "Denies shortness of breath",
+      "No known drug allergies besides the uncertain penicillin/amoxicillin",
+      "No wheezes",
+      "No crackles",
+      "no exudates"
+    ],
+    "pertinent_negatives_sources": [
+      {
+        "document_id": "notes",
+        "line_number": 9,
+        "quoted_text": "Denies shortness of breath."
+      },
+      {
+        "document_id": "notes",
+        "line_number": 9,
+        "quoted_text": "No known drug allergies besides the uncertain penicillin/amoxicillin."
+      },
+      {
+        "document_id": "notes",
+        "line_number": 15,
+        "quoted_text": "No wheezes"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 15,
+        "quoted_text": "or crackles"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 16,
+        "quoted_text": "no exudates"
+      }
+    ],
+    "risk_factors": [],
+    "risk_factors_sources": [],
+    "current_medications": [
+      {
+        "drug": "Tylenol",
+        "dose": "500 mg",
+        "route": null,
+        "frequency": "every 6 hours",
+        "status": "active",
+        "uncertainty": null,
+        "source": {
+          "document_id": "notes",
+          "line_number": 7,
+          "quoted_text": "She's been taking Tylenol, 500 mg every 6 hours, for the malaise."
+        }
+      }
+    ],
+    "allergies": [
+      {
+        "allergen": "penicillin or amoxicillin",
+        "reaction": "rash",
+        "status": "active",
+        "source": {
+          "document_id": "notes",
+          "line_number": 8,
+          "quoted_text": "she has an allergy to 'penicillin or maybe amoxicillin, not sure which one, but it caused a rash last time'."
+        }
+      }
+    ],
+    "recent_labs": [],
+    "clinical_impression": "Acute bronchitis, likely viral.",
+    "clinical_impression_source": {
+      "document_id": "notes",
+      "line_number": 19,
+      "quoted_text": "Acute bronchitis, likely viral."
+    },
+    "differential_diagnoses": [],
+    "differential_diagnoses_sources": [],
+    "pending_items": [
+      "chest X-ray"
+    ],
+    "red_flags": [],
+    "red_flags_sources": [],
+    "uncertainties": [
+      "not sure if it was exactly 100",
+      "not sure which one"
+    ],
+    "uncertainties_sources": [
+      {
+        "document_id": "notes",
+        "line_number": 6,
+        "quoted_text": "not sure if it was exactly 100"
+      },
+      {
+        "document_id": "notes",
+        "line_number": 8,
+        "quoted_text": "not sure which one"
+      }
+    ],
+    "unverified_fields": [],
+    "missing_fields": [],
+    "raw_extra_fields": {}
+  }
+}

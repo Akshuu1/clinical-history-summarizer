@@ -70,11 +70,13 @@ def compute_set_metrics(predicted: list[str], gold: list[str]) -> dict:
     return {"precision": precision, "recall": recall, "f1": f1, "tp": tp, "fp": fp, "fn": fn}
 
 
-def run_case(case_file: Path, gold_file: Path) -> dict:
+def run_case(case_file: Path) -> dict:
     """Run extraction on one case and evaluate against gold standard."""
     case_name = case_file.stem
-    raw_notes = case_file.read_text()
-    gold = json.loads(gold_file.read_text())
+    case_data = json.loads(case_file.read_text())
+    
+    raw_notes = case_data.get("raw_notes", "")
+    gold = case_data.get("gold_summary", {})
 
     start = time.time()
     raw_summary, normalised_lines = extract_summary_raw(
@@ -84,20 +86,18 @@ def run_case(case_file: Path, gold_file: Path) -> dict:
     verified = validate_summary(raw_summary, normalised_lines)
     elapsed = time.time() - start
 
-    # Extract predicted values
-    pred_allergies = [a.substance for a in verified.allergies]
-    pred_meds = [m.name for m in verified.current_medications]
+    # Extract predicted values (Updated schema fields)
+    pred_allergies = [a.allergen for a in verified.allergies]
+    pred_meds = [m.drug for m in verified.current_medications]
 
-    # Extract gold values
-    gold_allergies = [a.get("substance", "") for a in gold.get("allergies", [])]
-    gold_meds = [m.get("name", "") for m in gold.get("current_medications", [])]
+    # Extract gold values (Updated schema fields)
+    gold_allergies = [a.get("allergen", "") for a in gold.get("allergies", [])]
+    gold_meds = [m.get("drug", "") for m in gold.get("current_medications", [])]
 
     allergy_metrics = compute_set_metrics(pred_allergies, gold_allergies)
     med_metrics = compute_set_metrics(pred_meds, gold_meds)
 
-    # Hallucination check: were any unverified fields present?
-    # (A proper hallucination check would also compare field content, but
-    #  for this build we use unverified_fields as a proxy for citation failure)
+    # Hallucination check
     has_unverified = bool(verified.unverified_fields)
 
     return {
@@ -130,31 +130,28 @@ def aggregate(results: list[dict], field: str) -> dict:
 def main():
     console.print("\n[bold cyan]Clinical History Summarizer — Evaluation[/bold cyan]\n")
 
+    TEST_DIR = Path(__file__).parent.parent / "data" / "test_cases"
+
     # Check gold files exist
-    if not GOLD_DIR.exists() or not any(GOLD_DIR.iterdir()):
+    if not TEST_DIR.exists() or not any(TEST_DIR.iterdir()):
         console.print(
-            "[red]ERROR: No gold summary files found in data/gold_summaries/[/red]\n"
-            "You must hand-write gold summaries first. See data/gold_summaries/TEMPLATE.json."
+            "[red]ERROR: No generated test cases found in data/test_cases/[/red]\n"
+            "You must generate them first with `make generate-cases`."
         )
         sys.exit(1)
 
-    cases = sorted(NOTES_DIR.glob("case_*.txt"))
+    cases = sorted(TEST_DIR.glob("case_*.json"))
     if not cases:
-        console.print("[red]ERROR: No case files found in data/synthetic_notes/[/red]")
+        console.print("[red]ERROR: No case files found in data/test_cases/[/red]")
         sys.exit(1)
 
     results = []
     errors = []
 
     for case_file in cases:
-        gold_file = GOLD_DIR / (case_file.stem + ".json")
-        if not gold_file.exists():
-            console.print(f"[yellow]SKIP {case_file.stem}: no gold file[/yellow]")
-            continue
-
         console.print(f"  Running [cyan]{case_file.stem}[/cyan]...", end=" ")
         try:
-            result = run_case(case_file, gold_file)
+            result = run_case(case_file)
             results.append(result)
             uv = "⚠ " if result["has_unverified_fields"] else "✓ "
             console.print(
