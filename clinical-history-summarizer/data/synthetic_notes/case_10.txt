@@ -1,44 +1,28 @@
-DKA PROTOCOL — ACUTE MEDICINE
-Patient: SYNTH-010 | 19M | DOB: 2005-06-11
-Date: 2024-10-05 | Time: 11:20
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-CC: Vomiting, abdominal pain, polyuria, polydipsia x 2 days. T1DM known.
+K6 | 32M | ED 13/10/24 02:40
 
-Allergies: None known.
+cc: acute severe asthma attack. brought in by ambulance.
+SpO2 84% on air on arrival, now 93% on 15L NRB mask.
 
-Home medications:
-- Insulin Degludec 20 units SC at night
-- Insulin Aspart — mealtime, dose per sliding scale
+hx: asthma since age 12. 2 prev ICU admissions (last 2021).
+ran out of preventer inhaler ~1wk ago. had URTI 3 days ago.
 
-Diagnosis: Diabetic Ketoacidosis (moderate-severe)
+pmhx: asthma (severe persistent), eczema
 
-Clinical findings:
-- GCS: 15/15
-- BP: 96/62 mmHg
-- HR: 124 bpm
-- RR: 28 (Kussmaul breathing)
-- SpO2: 98%
-- Breath: Fruity odour
+meds per ambulance crew:
+- salbutamol neb given x2 en route
+- home meds: seretide 500 accuhaler 1 puff BD (not taken x1wk as above),
+  montelukast 10mg on, cetirizine 10mg on prn
 
-Labs:
-- Glucose: 31.2 mmol/L (HIGH) — 2024-10-05 11:25
-- Ketones (blood): 4.8 mmol/L (HIGH, moderate-severe DKA threshold >3.0)
-- pH: 7.18 (LOW — acidosis)
-- Bicarbonate: 10 mmol/L (LOW)
-- K: 3.2 mmol/L (LOW — requires replacement before insulin)
-- Na: 133 mmol/L (LOW, corrected)
-- Creatinine: 118 umol/L (slightly elevated, likely dehydration)
+allergy: aspirin — causes bronchoconstriction (NSAID-exacerbated resp disease)
+also: eggs (anaphylaxis as child, no epipen currently, says "grown out of it")
 
-Management (DKA protocol):
-- IV 0.9% NaCl 1L over 1h — running
-- KCl 40mmol added to next bag (K replacement)
-- Actrapid insulin infusion 0.1 units/kg/h (after K replacement confirmed)
-- Strict fluid balance
-- Hourly glucose and ketone monitoring
-- NBM currently
+bloods/ix:
+ABG (on 15L): pH 7.31, pCO2 5.8, pO2 11.2 — not yet improving
+CXR: hyperinflation, no consolidation
 
-Pending:
-- Trigger factor search (infection? missed insulin dose?)
-- ECG (hypokalaemia monitoring)
-- Repeat ABG in 2h
-- Diabetes team review — requested
+immediate plan: continue back-to-back salbutamol nebs, IV magnesium
+sulphate 2g over 20min, IV hydrocortisone 200mg stat.
+HDU/ICU referral made. resp reg called.
+pending: repeat ABG in 45 mins, peak flow when patient able.

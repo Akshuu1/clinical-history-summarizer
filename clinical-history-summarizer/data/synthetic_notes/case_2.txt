@@ -1,27 +1,29 @@
---- INPATIENT NOTE ---
-Pt: SYNTH-002 | Age: 45F | Adm: 2024-10-02
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-cc: breathlessness on exertion x 3 weeks
+Patient ID: A2
+Date of Admission: 04 October 2024
+Ward: Respiratory
 
-PMH: Bronchial asthma since childhood. Hypothyroidism diagnosed 2018.
+CHIEF COMPLAINT:
+Worsening breathlessness on exertion over the past 3 weeks.
+Also reports a dry cough and reduced exercise tolerance.
 
-Drug allergies: NKDA (no known drug allergies)
+ACTIVE PROBLEMS:
+1. Bronchial asthma — known since childhood, partially controlled
+2. Hypothyroidism — diagnosed 2018
 
-Meds (from patient report — not verified against pharmacy):
-Salbutamol inhaler PRN
-Levothyroxine — dose not recalled by patient
-Budesonide inhaler (formoterol combination) — 1 puff BD
+CURRENT MEDICATIONS:
+Salbutamol inhaler — 2 puffs as needed
+Budesonide/formoterol combination inhaler — 1 puff twice daily
+Levothyroxine 75 mcg oral once daily (morning, fasting)
 
-Examination: SpO2 92% on room air. Bilateral wheeze. No clubbing.
+ALLERGIES:
+No known drug allergies.
 
-Labs:
-- TSH: 8.2 mIU/L (HIGH) — 2024-10-01  [ref: 0.4–4.0]
-- FT4: 10.1 pmol/L (LOW)
-- Peak Flow: 220 L/min (predicted 420 L/min for age/sex)
-- CBC: WBC 9.1, Hb 12.3 g/dL, Plt 210
+RECENT INVESTIGATIONS:
+TSH: 9.1 mIU/L (HIGH, target 0.4–4.0) — collected 01 October 2024
+Peak flow: 195 L/min (50% of predicted for age and sex)
 
-Plan:
-1. Nebulise salbutamol now, repeat Q4H PRN
-2. Oral prednisolone 40mg daily x 5 days
-3. Endocrinology review for thyroid — pending appointment
-4. Spirometry — to be arranged outpatient
+PENDING:
+Spirometry to be arranged as outpatient.
+Endocrinology referral for thyroid optimisation.

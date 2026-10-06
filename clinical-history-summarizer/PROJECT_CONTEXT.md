@@ -1,53 +1,33 @@
-# Clinical History Summarizer — Living Context File
-> Paste this file into every AI session. It is the source of truth.
+## Project Name
+Clinical History Summarizer
 
-## What this system does
-Takes messy multi-source clinical notes (typed/pasted), runs them through a structured LLM extraction pipeline, and produces a verified, source-traceable clinical summary. Every claim in the output is either:
-- **Cited** (line number in the original notes that confirms it), or
-- **Flagged as unverified** (explicitly, never silently dropped)
+## Goal
+Take messy, multi-source clinical notes (synthetic data only — no real 
+patient data at any stage) and produce a structured clinical summary 
+where every field is either (a) cited to an exact source line, or 
+(b) explicitly flagged as unverified if no clear source exists. 
+The core value is trustworthiness and traceability, not just fluent 
+summarization.
 
-This is the core safety property. The system never invents facts.
+## Tech Stack
+- Backend: Python, FastAPI
+- Database: PostgreSQL + SQLAlchemy + Alembic
+- AI: Anthropic API (claude-sonnet-4-6) for structured extraction
+- Frontend: Streamlit
+- Evaluation: custom precision/recall scoring script against 
+  hand-written gold-standard summaries
 
-## Stack
-| Layer | Technology |
-|---|---|
-| Backend API | Python FastAPI |
-| Database | PostgreSQL 16 (SQLAlchemy + Alembic) |
-| LLM | Google Gemini 2.0 Flash |
-| Frontend | Next.js (React) |
-| Demo UI | Streamlit (optional local testing) |
+## Current Status
+[Update this after every stage — right now: "Just starting, no code written."]
 
-## Key pipeline steps (in order)
-1. **Input** — paste or upload raw notes, labs, medication lists
-2. **Normalise** — strip/tag every line with L1, L2, L3... for citation
-3. **Extract** — LLM call returns strict JSON (ClinicalSummary schema) with line-number citations per field
-4. **Validate** — `validator.py` checks that each cited line actually contains the claimed text
-5. **Flag** — fields without valid citations go to `unverified_fields` list
-6. **Store** — raw notes + verified summary saved in PostgreSQL
-7. **Display** — side-by-side view: original notes | structured summary
-
-## ClinicalSummary JSON schema
-```json
-{
-  "patient_id": "string",
-  "chief_complaint": { "value": "string", "source_line": 5, "source_text": "..." },
-  "active_problems": [{ "value": "string", "source_line": 12, "source_text": "..." }],
-  "current_medications": [{ "name": "string", "dose": "string", "frequency": "string", "source_line": 18, "source_text": "..." }],
-  "allergies": [{ "substance": "string", "reaction": "string", "source_line": 3, "source_text": "..." }],
-  "recent_labs": [{ "test": "string", "result": "string", "date": "string", "source_line": 25, "source_text": "..." }],
-  "pending_items": [{ "value": "string", "source_line": 31, "source_text": "..." }],
-  "unverified_fields": ["field_name_1", "field_name_2"]
-}
-```
-
-## Non-goals (this build)
+## Explicit Non-Goals (this build)
 - No handwriting OCR
-- No real WhatsApp delivery (stub endpoint only)
-- No ABDM / multi-hospital integration (architecture doc only)
-- No authentication / RBAC
-- No real patient data, ever
+- No real WhatsApp message delivery (demo stub only)
+- No multi-hospital data sharing / ABDM integration (architecture only)
+- No authentication or multi-user access control
+- No real patient data under any circumstances
 
-## Evaluation target
-- Precision + Recall on allergies & active_medications > 85%
-- Zero hallucinations in the test set (system cites or flags, never invents)
-- 15 synthetic cases in `data/synthetic_notes/`, hand-labelled gold in `data/gold_summaries/`
+## Core Schema Fields (see /app/models/summary.py once created)
+chief_complaint, active_problems, current_medications, recent_labs, 
+allergies, pending_items, unverified_fields — each field (except 
+unverified_fields) should support a source citation.

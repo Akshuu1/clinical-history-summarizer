@@ -1,34 +1,29 @@
-WARD ROUND NOTE — Medical Ward B
-Patient: SYNTH-003 | 78M | Adm date: 2024-09-28
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Presenting complaint: Fall at home, confusion, reduced oral intake x 2 days.
+Patient: B7
+Admission date: 22 September 2024
+Admitting team: General Surgery
 
-Allergies: Sulfonamides (rash). Codeine (excessive sedation, documented 2021).
+CHIEF COMPLAINT:
+Right iliac fossa pain for 18 hours, worse on movement,
+associated with nausea and one episode of vomiting.
+Temperature 38.1 degrees Celsius on arrival.
 
-Current medications (brought in by family, from home blister pack):
-- Ramipril 5mg OD
-- Bisoprolol 2.5mg OD
-- Furosemide 40mg OD
-- Spironolactone [dose illegible on pack]
-- Warfarin — dose per INR chart (not brought in)
-- Omeprazole 20mg OD
-- Donepezil 10mg ON
+ACTIVE PROBLEMS:
+1. Probable acute appendicitis (pending confirmation)
+2. No significant past medical history
 
-Active diagnoses:
-- Ischemic heart disease
-- Heart failure with reduced ejection fraction (EF 35% — echo 2024-04)
-- Atrial fibrillation (on anticoagulation)
-- Vascular dementia
+CURRENT MEDICATIONS:
+None regular.
 
-Labs today:
-- INR: 4.2 (HIGH — supratherapeutic) — 2024-09-28
-- Na: 128 mmol/L (LOW) — hyponatraemia
-- K: 5.8 mmol/L (HIGH)
-- Creatinine: 198 umol/L (HIGH) — baseline ~140 umol/L
-- eGFR: 29 mL/min/1.73m2
+ALLERGIES:
+Latex — contact dermatitis (gloves). Latex-free protocol requested.
 
-Pending:
-- CT Head (to rule out intracranial bleed — given high INR and fall)
-- Urine cultures
-- Hold Warfarin — monitor INR daily
-- Cardiology input re: anticoagulation in setting of high INR and fall risk
+RECENT INVESTIGATIONS:
+WBC: 15.4 x10^9/L (HIGH, neutrophilia) — today
+CRP: 112 mg/L (HIGH) — today
+
+PENDING:
+Surgical review in progress.
+Nil by mouth — theatre being arranged.
+IV antibiotics commenced (co-amoxiclav, noting no penicillin allergy).

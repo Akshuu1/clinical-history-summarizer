@@ -1,41 +1,21 @@
-ONCOLOGY WARD ROUND
-Patient: SYNTH-007 | 62M | Adm: 2024-10-03
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Diagnosis: Non-small cell lung cancer (NSCLC), adenocarcinoma, Stage IIIB
-EGFR mutation: Exon 19 deletion (confirmed 2024-08-15)
+F11 | female | ~40yo | walk-in 09/10/24
 
-Chief complaint: Worsening dyspnoea and haemoptysis x 1 week.
+presenting c/o: headache x 4 days, throbbing, unilateral (L side),
+photophobia + nausea, no vomiting. similar to previous migraines but
+"worse than usual". taking OTC ibuprofen with partial relief.
 
-Allergies: Cisplatin (nephrotoxicity — previous cycle)
+problems: migraine (dx 2016), anxiety disorder (on meds)
 
-Current oncology medications:
-- Osimertinib 80mg oral once daily (EGFR-targeted therapy)
-- Dexamethasone 4mg BD oral (anti-oedema)
-- Ondansetron 8mg TDS oral PRN
+meds:
+- sumatriptan 50mg prn (PRN, says she's been using it daily this week)
+- sertraline 100mg od
+- OCP (combined) — brand not recalled
 
-Supportive medications:
-- Omeprazole 20mg OD
-- Enoxaparin 60mg SC OD (VTE prophylaxis — active cancer)
-- Morphine SR 10mg BD (pain)
-- Morphine IR 5mg Q4H PRN (breakthrough)
+NKDa
 
-Active problems:
-- NSCLC Stage IIIB on Osimertinib — cycle 3
-- Haemoptysis (under investigation)
-- Moderate pleural effusion (right) — on imaging 2024-10-02
-- VTE prophylaxis
+investigations: nil done today. BP 138/86 on arrival (baseline unclear).
 
-Labs:
-- Hb: 9.8 g/dL (LOW — chronic disease anaemia)
-- WBC: 3.2 x10^9/L (LOW)
-- Plt: 88 x10^9/L (LOW)
-- Creatinine: 105 umol/L
-- LDH: 320 U/L (HIGH)
-
-Imaging: CT Chest 2024-10-02 — increased right pleural effusion, stable primary tumour.
-
-Pending:
-- Bronchoscopy — scheduled 2024-10-07
-- Haematology review (pancytopenia)
-- Repeat CT in 6 weeks
-- Palliative care team involvement — referral made
+pending: neurology referral if not improving in 2 weeks. GP follow-up
+advised. counsel re: medication overuse headache given daily sumatriptan use.

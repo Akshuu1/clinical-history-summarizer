@@ -1,669 +1,566 @@
 #!/usr/bin/env python3
 """
-Generates 15 synthetic patient case files in data/synthetic_notes/.
+Generates 15 synthetic patient case files into data/synthetic_notes/.
 
-These are entirely fictional patients — no real medical data.
-Each file (case_1.txt ... case_15.txt) contains a realistic but synthetic
-clinical note mixing:
-  - Admission note style
-  - Medication lists
-  - Lab results
-  - Allergy section
-  - Pending tests / referrals
+Cases are grouped by realism tier:
+  cases  1-5  : clear, well-organised notes
+  cases  6-10 : moderately messy (abbreviations, mixed order, inconsistent formatting)
+  cases 11-15 : deliberately ambiguous in at least one field (tests confidence-flagging)
 
-Run from project root:
+Run from the project root:
   python scripts/generate_synthetic_notes.py
 """
 
-import os
 from pathlib import Path
 
 OUTPUT_DIR = Path(__file__).parent.parent / "data" / "synthetic_notes"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-CASES = [
-    # case_1 — straightforward ED admission, clear data
-    (
-        "case_1.txt",
-        """Patient: SYNTH-001 | DOB: 1965-03-14 | MRN: SYN0001
-Date of Admission: 2024-09-15 | Ward: Emergency Department
+# ---------------------------------------------------------------------------
+# CASES 1–5: Clear, well-organised notes
+# ---------------------------------------------------------------------------
+
+CASE_1 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
+
+Patient ID: A1
+Date: 12 September 2024
+Clinician: Dr. R. Patel (Internal Medicine)
 
 CHIEF COMPLAINT:
-Patient presents with acute chest pain radiating to the left arm, onset 2 hours ago.
-
-ALLERGIES:
-- Penicillin: anaphylaxis (documented 2019)
-- Aspirin: GI upset
-
-CURRENT MEDICATIONS:
-- Metformin 500mg twice daily (oral)
-- Atorvastatin 40mg once at night (oral)
-- Amlodipine 5mg once daily (oral)
-
-HISTORY OF PRESENT ILLNESS:
-60-year-old male with known T2DM and hypertension presents with chest pain.
-Pain described as 8/10, pressure-like, with diaphoresis and nausea.
-No fever. No cough. No shortness of breath at rest.
+Patient A1 presents with a 3-day history of worsening shortness of breath
+and bilateral ankle swelling.
 
 ACTIVE PROBLEMS:
-1. Acute coronary syndrome (rule-out)
-2. Type 2 Diabetes Mellitus — on Metformin
-3. Hypertension — on Amlodipine
+1. Decompensated congestive heart failure (known EF 30%)
+2. Type 2 diabetes mellitus, poorly controlled
+3. Stage 3 chronic kidney disease (baseline creatinine 145 umol/L)
+
+CURRENT MEDICATIONS:
+- Furosemide 40 mg oral once daily
+- Carvedilol 6.25 mg oral twice daily
+- Metformin 500 mg oral twice daily (held today pending contrast)
+- Insulin glargine 18 units subcutaneous at bedtime
+
+ALLERGIES:
+Penicillin — causes hives and facial swelling (documented 2019)
+Contrast dye — anaphylactoid reaction (documented 2022)
 
 RECENT INVESTIGATIONS:
-ECG: ST depression in V4-V6 (done at 14:30 today)
-Troponin I: 0.08 ng/mL (HIGH) — collected 2024-09-15 at 14:45
-HbA1c: 7.9% — dated 2024-08-01
-Serum Creatinine: 1.1 mg/dL — dated 2024-09-15
-Blood Glucose: 210 mg/dL (HIGH) — dated 2024-09-15
+BNP: 1,240 pg/mL (HIGH) — collected today
+Creatinine: 198 umol/L (HIGH, above baseline) — collected today
 
 PENDING:
-- Repeat Troponin at 3h (due 17:45)
-- Cardiology consult requested
-- Echo scheduled for tomorrow morning
-""",
-    ),
-    # case_2 — scattered notes, ambiguous medication dose
-    (
-        "case_2.txt",
-        """--- INPATIENT NOTE ---
-Pt: SYNTH-002 | Age: 45F | Adm: 2024-10-02
+Echo requested to reassess ejection fraction.
+Cardiology review booked for next Tuesday.
+"""
 
-cc: breathlessness on exertion x 3 weeks
+CASE_2 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-PMH: Bronchial asthma since childhood. Hypothyroidism diagnosed 2018.
+Patient ID: A2
+Date of Admission: 04 October 2024
+Ward: Respiratory
 
-Drug allergies: NKDA (no known drug allergies)
+CHIEF COMPLAINT:
+Worsening breathlessness on exertion over the past 3 weeks.
+Also reports a dry cough and reduced exercise tolerance.
 
-Meds (from patient report — not verified against pharmacy):
-Salbutamol inhaler PRN
-Levothyroxine — dose not recalled by patient
-Budesonide inhaler (formoterol combination) — 1 puff BD
+ACTIVE PROBLEMS:
+1. Bronchial asthma — known since childhood, partially controlled
+2. Hypothyroidism — diagnosed 2018
 
-Examination: SpO2 92% on room air. Bilateral wheeze. No clubbing.
+CURRENT MEDICATIONS:
+Salbutamol inhaler — 2 puffs as needed
+Budesonide/formoterol combination inhaler — 1 puff twice daily
+Levothyroxine 75 mcg oral once daily (morning, fasting)
 
-Labs:
-- TSH: 8.2 mIU/L (HIGH) — 2024-10-01  [ref: 0.4–4.0]
-- FT4: 10.1 pmol/L (LOW)
-- Peak Flow: 220 L/min (predicted 420 L/min for age/sex)
-- CBC: WBC 9.1, Hb 12.3 g/dL, Plt 210
+ALLERGIES:
+No known drug allergies.
 
-Plan:
-1. Nebulise salbutamol now, repeat Q4H PRN
-2. Oral prednisolone 40mg daily x 5 days
-3. Endocrinology review for thyroid — pending appointment
-4. Spirometry — to be arranged outpatient
-""",
-    ),
-    # case_3 — elderly patient, polypharmacy, illegible dose on one med
-    (
-        "case_3.txt",
-        """WARD ROUND NOTE — Medical Ward B
-Patient: SYNTH-003 | 78M | Adm date: 2024-09-28
+RECENT INVESTIGATIONS:
+TSH: 9.1 mIU/L (HIGH, target 0.4–4.0) — collected 01 October 2024
+Peak flow: 195 L/min (50% of predicted for age and sex)
 
-Presenting complaint: Fall at home, confusion, reduced oral intake x 2 days.
+PENDING:
+Spirometry to be arranged as outpatient.
+Endocrinology referral for thyroid optimisation.
+"""
 
-Allergies: Sulfonamides (rash). Codeine (excessive sedation, documented 2021).
+CASE_3 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Current medications (brought in by family, from home blister pack):
-- Ramipril 5mg OD
-- Bisoprolol 2.5mg OD
-- Furosemide 40mg OD
-- Spironolactone [dose illegible on pack]
-- Warfarin — dose per INR chart (not brought in)
-- Omeprazole 20mg OD
-- Donepezil 10mg ON
+Patient: B7
+Admission date: 22 September 2024
+Admitting team: General Surgery
 
-Active diagnoses:
-- Ischemic heart disease
-- Heart failure with reduced ejection fraction (EF 35% — echo 2024-04)
-- Atrial fibrillation (on anticoagulation)
-- Vascular dementia
+CHIEF COMPLAINT:
+Right iliac fossa pain for 18 hours, worse on movement,
+associated with nausea and one episode of vomiting.
+Temperature 38.1 degrees Celsius on arrival.
 
-Labs today:
-- INR: 4.2 (HIGH — supratherapeutic) — 2024-09-28
-- Na: 128 mmol/L (LOW) — hyponatraemia
-- K: 5.8 mmol/L (HIGH)
-- Creatinine: 198 umol/L (HIGH) — baseline ~140 umol/L
-- eGFR: 29 mL/min/1.73m2
+ACTIVE PROBLEMS:
+1. Probable acute appendicitis (pending confirmation)
+2. No significant past medical history
 
-Pending:
-- CT Head (to rule out intracranial bleed — given high INR and fall)
-- Urine cultures
-- Hold Warfarin — monitor INR daily
-- Cardiology input re: anticoagulation in setting of high INR and fall risk
-""",
-    ),
-    # case_4 — paediatric case
-    (
-        "case_4.txt",
-        """PAEDIATRIC ED NOTE
-Patient: SYNTH-004 | Age: 7 years, Male | Weight: 22kg
-Date: 2024-09-20
+CURRENT MEDICATIONS:
+None regular.
 
-CC: Fever 39.5°C x 2 days, ear pain right side, reduced hearing.
+ALLERGIES:
+Latex — contact dermatitis (gloves). Latex-free protocol requested.
 
-Allergies: Amoxicillin (urticaria — age 4)
+RECENT INVESTIGATIONS:
+WBC: 15.4 x10^9/L (HIGH, neutrophilia) — today
+CRP: 112 mg/L (HIGH) — today
 
-Medications: None regular.
+PENDING:
+Surgical review in progress.
+Nil by mouth — theatre being arranged.
+IV antibiotics commenced (co-amoxiclav, noting no penicillin allergy).
+"""
 
-History: Mother reports child pulling at right ear for 2 days.
-Fever up to 39.8°C at home. No vomiting. Eating reduced. School-going.
+CASE_4 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Examination:
-- Tympanic membrane: Right TM red, bulging. Left TM normal.
-- Throat: Mild erythema, no exudate.
-- Lymph nodes: Right submandibular lymphadenopathy.
+Patient ID: C3
+Date: 30 September 2024
+Setting: Outpatient Clinic — Haematology
 
-Active problems:
-- Acute otitis media, right ear (bacterial, probable)
+CHIEF COMPLAINT:
+Increasing fatigue and pallor over six weeks.
+Patient reports feeling breathless climbing one flight of stairs.
 
-Labs: Not done (clinical diagnosis).
+ACTIVE PROBLEMS:
+1. Iron-deficiency anaemia (new diagnosis today)
+2. Uterine fibroids (known, managed conservatively)
+3. Osteoporosis (on treatment)
 
-Management:
-- Azithromycin 250mg oral once daily x 5 days (given amoxicillin allergy)
-- Paracetamol 360mg Q6H PRN for fever/pain
-- Ibuprofen 200mg Q8H PRN (with food)
-- Follow up in 3 days or sooner if worsening
-- Audiometry if not resolved in 4 weeks
+CURRENT MEDICATIONS:
+Tranexamic acid 1 g oral three times daily (during menstruation only)
+Alendronate 70 mg oral once weekly (taken on empty stomach)
+Calcium carbonate 500 mg with vitamin D3 800 IU oral once daily
 
-Pending:
-- Review in 3 days
-- Audiometry if prolonged — outpatient referral
-""",
-    ),
-    # case_5 — post-op note, multiple pending items
-    (
-        "case_5.txt",
-        """POST-OPERATIVE NOTE — Day 1
-Patient: SYNTH-005 | 55F | DOB: 1969-07-22
-Procedure: Laparoscopic cholecystectomy for acute cholecystitis
-Date of surgery: 2024-09-18
+ALLERGIES:
+No known allergies.
 
-Allergies: Latex (contact dermatitis — documented, latex-free protocol in place)
-           Morphine (nausea and vomiting)
+RECENT INVESTIGATIONS:
+Haemoglobin: 7.8 g/dL (LOW) — 28 September 2024
+Serum ferritin: 4 ng/mL (LOW, depleted stores) — 28 September 2024
 
-Pre-op medications (home):
-- Metformin 1000mg BD — HELD peri-operatively
-- Ramipril 5mg OD — HELD peri-operatively
-- Rosuvastatin 20mg ON — continued
+PENDING:
+Upper and lower GI endoscopy to exclude occult bleeding source.
+IV iron infusion planned for next week if no contraindication found.
+"""
 
-Post-op medications:
-- Paracetamol 1g QID IV x 24h then oral
-- Ondansetron 4mg IV TDS PRN nausea
-- Enoxaparin 40mg SC OD (DVT prophylaxis)
-- Tramadol 50mg oral Q6H PRN (morphine allergy — tramadol used instead)
+CASE_5 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Current status:
-- Tolerating sips, no nausea
-- Drain output 30mL sero-sanguineous
-- Wound: intact, no bleeding
-- Ambulating with help
+Patient: D12
+Date: 15 October 2024
+Specialty: Neurology Outpatient
 
-Active problems:
-- Day 1 post laparoscopic cholecystectomy
-- T2DM (metformin held)
-- Hypertension (ramipril held)
-- Latex allergy (protocol active)
+CHIEF COMPLAINT:
+New onset right-sided weakness and slurred speech lasting approximately
+20 minutes, fully resolved before arrival. No residual deficit on examination.
 
-Labs (post-op day 1):
-- Hb: 10.2 g/dL (LOW)
-- WBC: 14.3 x10^9/L (HIGH — expected post-operative)
-- CRP: 87 mg/L (HIGH)
-- LFTs: ALT 42, AST 38, ALP 95, Bilirubin 18 — all within normal limits
+ACTIVE PROBLEMS:
+1. Probable TIA (transient ischaemic attack) — to be confirmed with imaging
+2. Hypertension — known, on treatment
+3. Hypercholesterolaemia — on statin therapy
 
-Pending:
-- Histopathology of gallbladder specimen
-- Resume Metformin when eating fully
-- Resume Ramipril when BP stable
-- Drain removal if output <20mL/24h
-- Dietician referral — post-op
-""",
-    ),
-    # case_6 — psychiatric co-morbidity, complex social history
-    (
-        "case_6.txt",
-        """ADMISSION SUMMARY — Internal Medicine
-Patient: SYNTH-006 | 34F | Adm: 2024-10-05
+CURRENT MEDICATIONS:
+Amlodipine 5 mg oral once daily
+Atorvastatin 40 mg oral at night
+Aspirin 75 mg oral once daily (started in ED today, loading dose given)
 
-Reason for admission: Deliberate self-harm (superficial lacerations), now medically stable.
-Also presenting with poorly controlled Type 1 Diabetes.
+ALLERGIES:
+Codeine — caused excessive sedation and confusion (documented 2021).
+No other known drug allergies.
 
-Allergies: No known drug allergies.
+RECENT INVESTIGATIONS:
+CT brain (non-contrast): No acute infarct or haemorrhage — today
+LDL cholesterol: 4.2 mmol/L (HIGH) — 10 October 2024
 
-Psychiatric medications (confirmed with psychiatrist on call):
-- Sertraline 100mg once daily oral
-- Quetiapine 50mg at night oral
-- Diazepam 5mg PRN (not to exceed 10mg/day)
+PENDING:
+MRI brain with DWI sequences — scheduled tomorrow.
+Carotid Doppler ultrasound — arranged.
+Cardiology review to exclude cardioembolic source.
+"""
 
-Diabetes medications:
-- Insulin Glargine 24 units SC at night
-- Insulin Novorapid — sliding scale (see chart)
+# ---------------------------------------------------------------------------
+# CASES 6–10: Moderately messy notes
+# ---------------------------------------------------------------------------
 
-Active problems:
-- Type 1 Diabetes Mellitus — poorly controlled (HbA1c 10.2% — 2024-09-01)
-- Major Depressive Disorder — under psychiatric care
-- Borderline Personality Disorder (diagnosed 2021)
+CASE_6 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Labs:
-- Glucose: 21.4 mmol/L (HIGH) — 2024-10-05
-- HbA1c: 10.2% — 2024-09-01
-- Ketones (urine): negative — 2024-10-05
-- Creatinine: 82 umol/L
-- eGFR: >90 mL/min
+Pt: E9 / DOB ~1958 / seen 8/10/24
 
-Pending:
-- Psychiatric review — expected morning ward round tomorrow
-- Diabetes nurse educator review
-- Social work referral (housing instability noted)
-- Safe discharge planning — not for same-day discharge
-""",
-    ),
-    # case_7 — oncology patient, multiple complex medications
-    (
-        "case_7.txt",
-        """ONCOLOGY WARD ROUND
-Patient: SYNTH-007 | 62M | Adm: 2024-10-03
+CC - chest pain, onset last night around 10pm. Described as pressure,
+7/10, radiates L arm. Had similar episode 6mo ago that "went away on its own".
+Diaphoresis present. No syncope.
 
-Diagnosis: Non-small cell lung cancer (NSCLC), adenocarcinoma, Stage IIIB
-EGFR mutation: Exon 19 deletion (confirmed 2024-08-15)
+Pmhx: T2DM (on meds), HTN, ex-smoker (quit ~10yrs ago)
 
-Chief complaint: Worsening dyspnoea and haemoptysis x 1 week.
+Meds (from patient — not verified against GP records):
+metformin - not sure of dose, says "the small ones twice a day"
+ramipril 5mg od
+amlodipine - patient says 5 or 10mg, not certain
 
-Allergies: Cisplatin (nephrotoxicity — previous cycle)
+Allergies: says he had a bad reaction to "an antibiotic" years ago
+but cannot recall which one or what happened. Nothing in the notes
+brought today.
 
-Current oncology medications:
-- Osimertinib 80mg oral once daily (EGFR-targeted therapy)
-- Dexamethasone 4mg BD oral (anti-oedema)
-- Ondansetron 8mg TDS oral PRN
-
-Supportive medications:
-- Omeprazole 20mg OD
-- Enoxaparin 60mg SC OD (VTE prophylaxis — active cancer)
-- Morphine SR 10mg BD (pain)
-- Morphine IR 5mg Q4H PRN (breakthrough)
-
-Active problems:
-- NSCLC Stage IIIB on Osimertinib — cycle 3
-- Haemoptysis (under investigation)
-- Moderate pleural effusion (right) — on imaging 2024-10-02
-- VTE prophylaxis
-
-Labs:
-- Hb: 9.8 g/dL (LOW — chronic disease anaemia)
-- WBC: 3.2 x10^9/L (LOW)
-- Plt: 88 x10^9/L (LOW)
-- Creatinine: 105 umol/L
-- LDH: 320 U/L (HIGH)
-
-Imaging: CT Chest 2024-10-02 — increased right pleural effusion, stable primary tumour.
-
-Pending:
-- Bronchoscopy — scheduled 2024-10-07
-- Haematology review (pancytopenia)
-- Repeat CT in 6 weeks
-- Palliative care team involvement — referral made
-""",
-    ),
-    # case_8 — brief triage note (incomplete data — good test for unverified_fields)
-    (
-        "case_8.txt",
-        """TRIAGE NOTE — ED
-Time: 03:42
-Patient: SYNTH-008 | Approx 50s, Male | No ID presented
-
-CC: Found unconscious by bystanders. GCS 10/15 on arrival.
-
-Bystander reports possible alcohol ingestion. Unknown medical history.
-
-No medication list available.
-
-Allergies: Unknown.
-
-Vitals:
-- BP: 88/52 mmHg (LOW)
-- HR: 118 bpm
-- SpO2: 94% on 4L O2
-- Temp: 36.1°C
-- RR: 22
-
-Brief exam: Pupils equal and reactive. No external trauma. Breath smells of alcohol.
-
-Labs pending (sent):
-- Glucose stat: 3.1 mmol/L (LOW)
-- Blood cultures x2
-- Toxicology screen
-- ABG — result awaited
-- Ethanol level — result awaited
+Ix:
+Trop I: 0.06 (lab ref <0.04) — HIGH — taken at 03:15
+ECG: ST depression V3-V5 (done on arrival)
 
 Plan:
-- IV dextrose 50mL of 50% — given now
-- IV fluids — 0.9% NaCl 1L wide open
-- Monitor, reassess GCS in 30 mins
-""",
-    ),
-    # case_9 — pregnancy-related admission
-    (
-        "case_9.txt",
-        """OBSTETRIC ADMISSION NOTE
-Patient: SYNTH-009 | 28F | Gravida 2 Para 1 | POG: 32 weeks
-Date: 2024-10-04
+- ACS protocol started
+- repeat trop at 0h+3 pending
+- cardiology to review
+"""
 
-CC: Severe headache, visual disturbance, and pedal oedema x 1 day.
+CASE_7 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Allergies: NKDA.
+F11 | female | ~40yo | walk-in 09/10/24
 
-Medications (antenatal):
-- Folic acid 5mg OD
-- Ferrous sulphate 200mg TDS
-- Low-dose aspirin 75mg OD (started at 12 weeks for pre-eclampsia risk)
+presenting c/o: headache x 4 days, throbbing, unilateral (L side),
+photophobia + nausea, no vomiting. similar to previous migraines but
+"worse than usual". taking OTC ibuprofen with partial relief.
 
-Examination:
-- BP: 158/102 mmHg (HIGH)
-- Urine dipstick: 3+ protein
-- Oedema: bilateral pitting oedema up to knees
+problems: migraine (dx 2016), anxiety disorder (on meds)
 
-Active problems:
-- Severe pre-eclampsia (32 weeks gestation)
-- Gestational thrombocytopaenia (platelet count 89 x10^9/L)
+meds:
+- sumatriptan 50mg prn (PRN, says she's been using it daily this week)
+- sertraline 100mg od
+- OCP (combined) — brand not recalled
 
-Labs:
-- Plt: 89 x10^9/L (LOW) — 2024-10-04
-- Creatinine: 74 umol/L
-- ALT: 62 U/L (HIGH — upper limit 40)
-- AST: 71 U/L (HIGH)
-- LDH: 480 U/L (HIGH)
-- Uric acid: 412 umol/L (HIGH)
-- 24h urine protein: 4.2g/day (HIGH) — pending formal lab confirmation
+NKDa
 
-Management started:
-- MgSO4 4g IV loading dose — given
-- MgSO4 1g/h IV infusion — ongoing
-- Labetalol 200mg oral BD started
-- Corticosteroids: Betamethasone 12mg IM x2 (fetal lung maturity)
-- Continuous CTG monitoring
+investigations: nil done today. BP 138/86 on arrival (baseline unclear).
 
-Pending:
-- Formal 24h urine protein result
-- Obstetric ultrasound — fetal biometry and Doppler
-- Anaesthesia review (for possible emergency CS)
-- Neonatology briefing — planned
-""",
-    ),
-    # case_10 — diabetic ketoacidosis
-    (
-        "case_10.txt",
-        """DKA PROTOCOL — ACUTE MEDICINE
-Patient: SYNTH-010 | 19M | DOB: 2005-06-11
-Date: 2024-10-05 | Time: 11:20
+pending: neurology referral if not improving in 2 weeks. GP follow-up
+advised. counsel re: medication overuse headache given daily sumatriptan use.
+"""
 
-CC: Vomiting, abdominal pain, polyuria, polydipsia x 2 days. T1DM known.
+CASE_8 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Allergies: None known.
+===== WARD ROUND NOTE =====
+Patient G4 | male | 74yo | Day 3 post-admission
 
-Home medications:
-- Insulin Degludec 20 units SC at night
-- Insulin Aspart — mealtime, dose per sliding scale
+Reason for admission: fall at home, query cause.
+Now: mobilising with physio, mild confusion still present (better than day 1)
 
-Diagnosis: Diabetic Ketoacidosis (moderate-severe)
+Active issues:
+ * recurrent falls (3rd this year)
+ * vascular dementia (mild-moderate, diagnosed 2022)
+ * AF - on anticoag
+ * HTN
 
-Clinical findings:
-- GCS: 15/15
-- BP: 96/62 mmHg
-- HR: 124 bpm
-- RR: 28 (Kussmaul breathing)
-- SpO2: 98%
-- Breath: Fruity odour
+Drug chart (written up by admitting SHO — pharmacy reconciliation pending):
+Rivaroxaban 20mg OD with evening meal
+Bisoprolol 2.5mg OD
+Lercanidipine 10mg OD
+Zopiclone 3.75mg ON — prescribed at home, family says he takes it nightly
+Donepezil 5mg ON
 
-Labs:
-- Glucose: 31.2 mmol/L (HIGH) — 2024-10-05 11:25
-- Ketones (blood): 4.8 mmol/L (HIGH, moderate-severe DKA threshold >3.0)
-- pH: 7.18 (LOW — acidosis)
-- Bicarbonate: 10 mmol/L (LOW)
-- K: 3.2 mmol/L (LOW — requires replacement before insulin)
-- Na: 133 mmol/L (LOW, corrected)
-- Creatinine: 118 umol/L (slightly elevated, likely dehydration)
+ALLERGIES: sulfonamides (trimethoprim caused rash in 2020)
 
-Management (DKA protocol):
-- IV 0.9% NaCl 1L over 1h — running
-- KCl 40mmol added to next bag (K replacement)
-- Actrapid insulin infusion 0.1 units/kg/h (after K replacement confirmed)
-- Strict fluid balance
-- Hourly glucose and ketone monitoring
-- NBM currently
+Recent bloods (07/10/24):
+Na 131 (LOW), K 4.2, Cr 102, eGFR 58
+INR not done yet — urgent flagged
 
 Pending:
-- Trigger factor search (infection? missed insulin dose?)
-- ECG (hypokalaemia monitoring)
-- Repeat ABG in 2h
-- Diabetes team review — requested
-""",
-    ),
-    # case_11 — renal failure, complex background
-    (
-        "case_11.txt",
-        """NEPHROLOGY CONSULT NOTE
-Patient: SYNTH-011 | 67F | Date: 2024-10-01
+CT head ordered (waiting for porter)
+Falls MDT to be arranged
+Review zopiclone — contributing to falls?
+"""
 
-Referral reason: Worsening renal function — creatinine rise from 145 to 312 umol/L over 6 weeks.
+CASE_9 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Allergies: Contrast dye (anaphylactoid reaction — documented). NSAIDs (worsens renal function — avoid).
+Patient H2. Seen in MAU 11 Oct. Referred from GP.
 
-Background:
-- CKD Stage 3b (baseline Cr ~145, eGFR ~35) — diagnosed 2021
-- T2DM on insulin
-- Hypertension
-- Cardiac failure (EF 40% on echo 2023)
+hx: 58F, known DM2, referred with 2wk hx polyuria+polydipsia,
+blurred vision, 4kg wt loss. HbA1c sent by GP = 11.4% (very high, poorly
+controlled). normally managed in primary care, first hospital attendance
+in years.
 
-Current medications:
-- Insulin Glargine 18 units SC ON
-- Amlodipine 10mg OD
-- Furosemide 80mg OD
-- Carvedilol 12.5mg BD
-- Allopurinol 100mg OD
-- Calcium carbonate 500mg TDS with meals (phosphate binder)
-- Erythropoietin 4000 units SC weekly
+Problems: T2DM (dx 2015), obesity (BMI 38 noted at GP), GORD
 
-Labs (today):
-- Creatinine: 312 umol/L (HIGH) — 2024-10-01
-- eGFR: 16 mL/min/1.73m2 (LOW — CRITICAL decline)
-- K: 6.1 mmol/L (HIGH — hyperkalaemia)
-- Hb: 9.1 g/dL (LOW — anaemia of CKD)
-- Urine protein:creatinine ratio 480 mg/mmol (HIGH — significant proteinuria)
-- eGFR trend: 35 → 28 → 16 over 6 weeks (rapid decline)
+Medication list from GP letter:
+metformin 1g BD
+sitagliptin 100mg OD
+omeprazole 20mg OD
+(GP letter also mentions "topical treatment for skin condition" —
+no further detail given)
 
-Assessment: Acute-on-chronic kidney disease. Likely cause: volume depletion (furosemide overdose?) vs. disease progression vs. ATN.
+Allergies: NKDA per GP letter
 
-Pending:
-- Renal ultrasound (avoid contrast given allergy)
-- Review furosemide dose — consider reducing
-- AV fistula planning referral (if trajectory continues)
-- Dietitian referral (low-potassium, low-phosphate diet)
-- Start sodium bicarbonate 500mg BD for acidosis
-""",
-    ),
-    # case_12 — stroke patient
-    (
-        "case_12.txt",
-        """STROKE UNIT ADMISSION
-Patient: SYNTH-012 | 71M | Adm: 2024-09-30 02:15
+bloods today: glucose 22.1 mmol/L (HIGH), HbA1c 11.4% (done at GP 3 days ago),
+renal fn normal (Cr 74, eGFR >90)
 
-CC: Sudden onset right arm and leg weakness, facial droop, slurred speech — 1 hour prior to arrival.
+plan: diabetes review nurse, dietitian referral, consider intensification
+of hypoglycaemic therapy vs insulin initiation. ophthalmology referral
+for diabetic eye check (overdue by 2 years per GP records).
+"""
 
-Allergies: Warfarin (prior GI bleed — do not re-challenge).
+CASE_10 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Medications (home):
-- Clopidogrel 75mg OD (secondary prevention — prior TIA 2022)
-- Atorvastatin 80mg ON
-- Lisinopril 10mg OD
-- Amlodipine 5mg OD
+K6 | 32M | ED 13/10/24 02:40
 
-Exam (on arrival):
-- NIHSS: 14 (moderate-severe stroke)
-- Right hemiparesis (3/5 power)
-- Right facial droop
-- Dysarthria
-- No neglect, visual fields intact
+cc: acute severe asthma attack. brought in by ambulance.
+SpO2 84% on air on arrival, now 93% on 15L NRB mask.
 
-Imaging:
-- CT Brain (non-contrast) 2024-09-30 02:40: No haemorrhage. Hyperdense MCA sign left.
-- CT Angiography: Left MCA M1 occlusion.
+hx: asthma since age 12. 2 prev ICU admissions (last 2021).
+ran out of preventer inhaler ~1wk ago. had URTI 3 days ago.
 
-Active problems:
-- Acute ischaemic stroke — left MCA territory
-- Hypertension
-- Hyperlipidaemia
-- Prior TIA (2022)
+pmhx: asthma (severe persistent), eczema
 
-Thrombolysis:
-- IV Alteplase 0.9mg/kg administered 2024-09-30 03:05 (onset to needle: 50 mins)
-- BP post-thrombolysis: 148/88 — monitoring Q15min
+meds per ambulance crew:
+- salbutamol neb given x2 en route
+- home meds: seretide 500 accuhaler 1 puff BD (not taken x1wk as above),
+  montelukast 10mg on, cetirizine 10mg on prn
 
-Labs:
-- Glucose: 6.8 mmol/L
-- INR: 1.0 (not anticoagulated at admission)
-- Plt: 210 x10^9/L
-- LDL: 3.8 mmol/L (HIGH)
+allergy: aspirin — causes bronchoconstriction (NSAID-exacerbated resp disease)
+also: eggs (anaphylaxis as child, no epipen currently, says "grown out of it")
 
-Pending:
-- Mechanical thrombectomy assessment by IR team — urgent
-- MRI Brain with DWI — when stable
-- Swallow assessment — SALT referral
-- Physio + OT assessment
-- Echo to rule out cardioembolic source
-- Neurology review
-""",
-    ),
-    # case_13 — HIV patient, complex drug interactions
-    (
-        "case_13.txt",
-        """HIV MEDICINE CLINIC NOTE
-Patient: SYNTH-013 | 38M | Date: 2024-10-04
+bloods/ix:
+ABG (on 15L): pH 7.31, pCO2 5.8, pO2 11.2 — not yet improving
+CXR: hyperinflation, no consolidation
 
-CC: Routine follow-up. New complaint: peripheral neuropathy both feet.
+immediate plan: continue back-to-back salbutamol nebs, IV magnesium
+sulphate 2g over 20min, IV hydrocortisone 200mg stat.
+HDU/ICU referral made. resp reg called.
+pending: repeat ABG in 45 mins, peak flow when patient able.
+"""
 
-Allergies: Nevirapine (Stevens-Johnson syndrome — 2019, do NOT re-challenge).
+# ---------------------------------------------------------------------------
+# CASES 11–15: Deliberately ambiguous (tests confidence-flagging)
+# ---------------------------------------------------------------------------
 
-ART regimen (stable x 2 years):
-- Tenofovir alafenamide (TAF) 25mg OD
-- Emtricitabine (FTC) 200mg OD
-- Dolutegravir 50mg OD
+CASE_11 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Other medications:
-- Cotrimoxazole 960mg OD (PCP prophylaxis — CD4 was 180 at last count)
-- Vitamin B complex OD
+Patient: L9
+Seen: approx. early October 2024
+Setting: GP referral letter (transcribed)
 
-CD4 and viral load:
-- CD4: 320 cells/uL (up from 180 six months ago) — 2024-10-04
-- Viral load: <20 copies/mL (undetectable) — 2024-10-04
+Patient L9 is a gentleman in his mid-sixties referred for investigation
+of macrocytic anaemia found incidentally on routine bloods.
 
-Other labs:
-- Creatinine: 89 umol/L
-- eGFR: 82 mL/min
-- HBsAg: Negative
-- Lipid panel: LDL 3.1, HDL 0.9, TG 2.8 (HIGH) — 2024-10-04
+He takes a number of medications for his heart. I have not been able
+to obtain a complete list as he attends another practice for his
+cardiology follow-up, but I believe he is on at least one anticoagulant
+and possibly a rate-controlling agent. He also mentioned taking
+"something for his stomach" but was unable to recall the name or dose.
 
-Active problems:
-- HIV-1 infection, on ART, virologically suppressed
-- Peripheral neuropathy (new) — ?cause (ART vs. nutritional vs. other)
-- Hypertriglyceridaemia
+He reports a previous adverse reaction to a statin — he stopped it
+himself some years ago due to muscle pains, but is not sure if this
+was formally documented as an allergy or just a side effect.
 
-Pending:
-- EMG/nerve conduction study — referral made
-- Neurology review
-- Review PCP prophylaxis — consider stopping if CD4 remains >200 x 3 months
-- Fenofibrate 145mg OD — consider for triglycerides (discuss with patient)
-""",
-    ),
-    # case_14 — geriatric falls assessment
-    (
-        "case_14.txt",
-        """GERIATRIC FALLS ASSESSMENT
-Patient: SYNTH-014 | 82F | Date: 2024-10-02
+Active concerns from my perspective:
+- Macrocytic anaemia (B12/folate deficiency vs medication-induced)
+- Query alcohol use (units per week unclear, patient vague)
+- The cardiac condition (exact diagnosis not provided in referral)
 
-CC: Third fall in 6 weeks. No loss of consciousness. Minor bruising.
+Recent bloods: Hb 9.2 g/dL, MCV 108 fL (both from GP, dated approx
+3 weeks ago). B12 and folate pending from today's draw.
 
-Allergies: Aspirin (asthma exacerbation). ACE inhibitors (angioedema — documented).
+Please review and advise on further management.
+No specific follow-up arranged at time of writing.
+"""
 
-Medications (home — verified with carer):
-- Bisoprolol 5mg OD
-- Lercanidipine 10mg OD
-- Simvastatin 20mg ON
-- Omeprazole 20mg OD
-- Mirtazapine 15mg ON (for depression + sleep)
-- Zopiclone 3.75mg ON PRN (patient using nightly — CONCERN: fall risk)
-- Calcium + Vitamin D 500mg/800IU OD
+CASE_12 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Falls risk factors identified:
-- Polypharmacy (7 medications)
-- Zopiclone use — nightly (not PRN as prescribed) — HIGH FALL RISK
-- Postural hypotension: BP sitting 138/82, standing 104/62 (>20mmHg systolic drop)
-- Mirtazapine — sedating, contributes to fall risk
+pt M3 female 29yo
+admitted via ED following deliberate self-harm (superficial lacerations
+to forearm, medically managed, wounds dressed). now medically stable,
+awaiting psych review.
 
-Active problems:
-- Recurrent falls (x3 in 6 weeks)
-- Postural hypotension
-- Depression (on Mirtazapine)
-- Osteoporosis (DEXA T-score -2.8 lumbar — 2023)
+diabetes — type 1. "usually well controlled" per patient. no recent hba1c
+available. patient reports not always taking insulin when feeling unwell.
 
-Labs:
-- Vitamin D: 32 nmol/L (LOW — target >75)
-- PTH: 68 pg/mL (HIGH — secondary hyperparathyroidism)
-- TSH: 2.1 mIU/L (normal)
-- Creatinine: 95 umol/L
+psych meds: patient mentions she "used to be on something" but stopped
+taking it a few months ago. name/dose not known. no current regular
+psychiatric medications confirmed.
 
-Pending:
-- Zopiclone taper and discontinuation plan
-- Physiotherapy — balance and gait training
-- DEXA repeat (last 2023)
-- Consider bisphosphonate for osteoporosis
-- OT home assessment
-- Increase Vitamin D to 2000IU OD
-""",
-    ),
-    # case_15 — intentionally messy note (tests robustness)
-    (
-        "case_15.txt",
-        """quick note - rushed ward round
-pt synth-015, ~40yo female, came in yesterday
-main issue: rash all over body after starting new antibiotic
-dont know which one - family says something for UTI
-possibly amoxiclav? or trimethoprim? patient not sure
+insulin: novorapid with meals (patient-reported doses: variable).
+lantus at night — dose also not stated clearly, says "about 20 units
+but it changes".
 
-she has lupus (SLE) - on hydroxychloroquine 200mg daily
-also takes something for blood pressure - losartan i think, maybe 50mg
-and methotrexate weekly (low dose) for rheumatoid complication
+allergy: patient denies allergies. however, nursing notes from a
+previous admission (2022) mention "morphine — nausea", though it is
+unclear if this was documented as an allergy or an adverse effect.
+previous notes not available for review today.
 
-examination: widespread maculopapular rash trunk and arms
-no mucosal involvement, no blistering
-vitals stable
+glucose on admission: 3.1 mmol/L (LOW — corrected with oral glucose).
+no other bloods yet.
 
-we stopped the antibiotic (whichever one it was)
-antihistamine given - cetirizine 10mg oral
+pending: psychiatric assessment (urgent), endocrine review re: T1DM
+management, social work input. safeguarding form completed.
+"""
 
-labs: CBC normal, CRP 22 (mildly elevated), eosinophils 0.9 (borderline high)
-creatinine ok - 88, LFTs normal
+CASE_13 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-plan:
-- keep monitoring rash
-- dermatology referral if not improving
-- need to clarify WHICH antibiotic caused this (critical for allergy documentation)
-- methotrexate hepatotoxicity monitoring (lfts ok today)
-- rheumatology aware
+N5 | elderly female | exact DOB unclear from notes | ward B 
 
-note: dont know her full med list - only going on what family said
-""",
-    ),
+Patient brought in by son. Found at home after neighbour raised concern.
+Son reports she "hasn't been herself" for about a week. No specific
+complaint from patient (limited historian).
+
+On examination: confused (AMT 4/10), dry mucous membranes, temp 37.8.
+
+Background: son reports HTN, "a thyroid problem" (on tablets), and
+something to do with her kidneys (no further detail). He is not sure
+of her medication names — he brought in a carrier bag with blister
+packs, most of which are unlabelled or partially labelled. Pharmacy
+reconciliation requested but will take time.
+
+Identifiable medications from blister packs:
+- A pink tablet, once daily (unidentified)
+- Levothyroxine 50mcg (label visible)
+- One other tablet (white, round, no markings visible on this pack)
+
+Allergies: son says "she can't have aspirin — something about her
+stomach" but cannot say if this is a documented allergy, an intolerance,
+or just a personal preference she has mentioned. No medic-alert bracelet.
+
+bloods: Na 147 (HIGH), Cr 156 (HIGH), urea 18.2 (HIGH). WBC 13.1.
+lactate 1.8. No prior bloods for comparison available today.
+
+impression: dehydration with possible infection. sepsis screen sent.
+urine dip: leucocytes ++ nitrites +
+
+pending: CXR, blood and urine cultures, further medication reconciliation,
+family to bring any GP letters or discharge summaries they can find.
+"""
+
+CASE_14 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
+
+Outpatient rheum review — patient P2, male, ~50s.
+Seen by SpR, supervised by consultant.
+
+reason for attendance: follow up RA, also raised by patient —
+new onset swelling right knee, started about 3 weeks ago. Query
+flare vs. new pathology.
+
+background: seropositive RA (RF+, anti-CCP+, diagnosed 2017).
+Previous trial of methotrexate — stopped due to "liver problem"
+(patient says LFTs were raised, does not know by how much;
+not sure if this means methotrexate is formally contraindicated
+or just needs monitoring). Currently on a biologic but patient
+cannot name it — "the injection I do at home every two weeks".
+
+Other problems: T2DM (diet-controlled, no meds), GORD.
+
+Other meds: omeprazole 20mg OD, naproxen 500mg BD PRN
+(patient takes this regularly despite GORD — noted, counselled).
+
+Allergies: none stated. Patient unsure — "I just avoid things
+that disagree with me." No formal allergy documentation found
+in today's clinic letter.
+
+bloods from last month: CRP 34 (HIGH), ESR 51 (HIGH), Hb 11.1 (borderline low).
+no bloods today, point-of-care CRP sent — result pending.
+
+plan: aspirate right knee if effusion confirmed. check biologic records
+via pharmacy. revisit methotrexate hepatotoxicity question with full
+liver screen before any future DMARD change. follow up in 6 weeks.
+"""
+
+CASE_15 = """\
+# SYNTHETIC DATA — NOT A REAL PATIENT
+
+quick note — Q8, male, 22yo, student. seen urgently in GP clinic.
+
+presenting with rash — widespread, appeared this morning.
+started taking a new antibiotic 4 days ago for a chest infection
+(says it was prescribed by a walk-in clinic, doesn't have the
+packet with him — thinks it "started with an A" — amoxicillin?
+azithromycin? not confirmed).
+
+rash: maculopapular, trunk and arms, no mucosal involvement,
+mild itching. no blistering. no fever. no lymphadenopathy.
+vitals normal.
+
+past medical: nil significant. no regular meds.
+
+the antibiotic has been stopped pending this review.
+no epipen given today as reaction does not appear anaphylactic.
+
+allergy documentation: cannot complete formal allergy entry as
+the causative drug is unconfirmed. will need to clarify with
+walk-in clinic records before documenting anything.
+
+bloods: not done (clinical decision).
+
+impression: probable drug reaction to recent antibiotic.
+which antibiotic unclear — THIS MUST BE CLARIFIED before any
+future prescribing of penicillins or macrolides.
+
+plan: cetirizine 10mg OD for symptom relief. safety-net advice given.
+follow-up in 3 days. request records from walk-in clinic.
+"""
+
+# ---------------------------------------------------------------------------
+
+CASES = [
+    ("case_1.txt",  CASE_1),
+    ("case_2.txt",  CASE_2),
+    ("case_3.txt",  CASE_3),
+    ("case_4.txt",  CASE_4),
+    ("case_5.txt",  CASE_5),
+    ("case_6.txt",  CASE_6),
+    ("case_7.txt",  CASE_7),
+    ("case_8.txt",  CASE_8),
+    ("case_9.txt",  CASE_9),
+    ("case_10.txt", CASE_10),
+    ("case_11.txt", CASE_11),
+    ("case_12.txt", CASE_12),
+    ("case_13.txt", CASE_13),
+    ("case_14.txt", CASE_14),
+    ("case_15.txt", CASE_15),
 ]
 
 
 def main():
     print(f"Writing {len(CASES)} synthetic case files to: {OUTPUT_DIR}\n")
-    for filename, content in CASES:
+    print("Tier 1 — clear, well-organised (cases 1–5):")
+    for i, (filename, content) in enumerate(CASES):
         path = OUTPUT_DIR / filename
-        path.write_text(content.strip())
-        print(f"  ✓ {filename} ({len(content.strip().splitlines())} lines)")
-    print(f"\nDone. Run scripts/evaluate.py after creating gold_summaries/.")
+        path.write_text(content.lstrip())
+        lines = content.strip().count("\n") + 1
+        tier = (
+            "CLEAR     " if i < 5
+            else "MESSY     " if i < 10
+            else "AMBIGUOUS "
+        )
+        print(f"  [{tier}] {filename} ({lines} lines)")
+        if i == 4:
+            print("\nTier 2 — moderately messy (cases 6–10):")
+        if i == 9:
+            print("\nTier 3 — deliberately ambiguous (cases 11–15):")
+
+    print(f"\nDone. Files saved to: {OUTPUT_DIR}")
+    print("\nAmbiguous fields by design:")
+    print("  case_6  : medication dose unknown (metformin), unknown antibiotic allergy")
+    print("  case_11 : incomplete medication list, allergy vs. side-effect unclear")
+    print("  case_12 : insulin dose vague, morphine allergy vs. adverse effect unclear")
+    print("  case_13 : most medications unidentified, aspirin 'allergy' ambiguous")
+    print("  case_14 : biologic name unknown, allergy section blank/uncertain")
+    print("  case_15 : causative drug unconfirmed — allergy cannot be documented")
+    print("\nNo-allergy-info cases (simulating real gaps):")
+    print("  case_4  : 'No known allergies'")
+    print("  case_7  : 'NKDA'")
+    print("  case_9  : 'NKDA per GP letter'")
 
 
 if __name__ == "__main__":

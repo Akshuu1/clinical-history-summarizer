@@ -1,36 +1,33 @@
-HIV MEDICINE CLINIC NOTE
-Patient: SYNTH-013 | 38M | Date: 2024-10-04
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-CC: Routine follow-up. New complaint: peripheral neuropathy both feet.
+N5 | elderly female | exact DOB unclear from notes | ward B 
 
-Allergies: Nevirapine (Stevens-Johnson syndrome — 2019, do NOT re-challenge).
+Patient brought in by son. Found at home after neighbour raised concern.
+Son reports she "hasn't been herself" for about a week. No specific
+complaint from patient (limited historian).
 
-ART regimen (stable x 2 years):
-- Tenofovir alafenamide (TAF) 25mg OD
-- Emtricitabine (FTC) 200mg OD
-- Dolutegravir 50mg OD
+On examination: confused (AMT 4/10), dry mucous membranes, temp 37.8.
 
-Other medications:
-- Cotrimoxazole 960mg OD (PCP prophylaxis — CD4 was 180 at last count)
-- Vitamin B complex OD
+Background: son reports HTN, "a thyroid problem" (on tablets), and
+something to do with her kidneys (no further detail). He is not sure
+of her medication names — he brought in a carrier bag with blister
+packs, most of which are unlabelled or partially labelled. Pharmacy
+reconciliation requested but will take time.
 
-CD4 and viral load:
-- CD4: 320 cells/uL (up from 180 six months ago) — 2024-10-04
-- Viral load: <20 copies/mL (undetectable) — 2024-10-04
+Identifiable medications from blister packs:
+- A pink tablet, once daily (unidentified)
+- Levothyroxine 50mcg (label visible)
+- One other tablet (white, round, no markings visible on this pack)
 
-Other labs:
-- Creatinine: 89 umol/L
-- eGFR: 82 mL/min
-- HBsAg: Negative
-- Lipid panel: LDL 3.1, HDL 0.9, TG 2.8 (HIGH) — 2024-10-04
+Allergies: son says "she can't have aspirin — something about her
+stomach" but cannot say if this is a documented allergy, an intolerance,
+or just a personal preference she has mentioned. No medic-alert bracelet.
 
-Active problems:
-- HIV-1 infection, on ART, virologically suppressed
-- Peripheral neuropathy (new) — ?cause (ART vs. nutritional vs. other)
-- Hypertriglyceridaemia
+bloods: Na 147 (HIGH), Cr 156 (HIGH), urea 18.2 (HIGH). WBC 13.1.
+lactate 1.8. No prior bloods for comparison available today.
 
-Pending:
-- EMG/nerve conduction study — referral made
-- Neurology review
-- Review PCP prophylaxis — consider stopping if CD4 remains >200 x 3 months
-- Fenofibrate 145mg OD — consider for triglycerides (discuss with patient)
+impression: dehydration with possible infection. sepsis screen sent.
+urine dip: leucocytes ++ nitrites +
+
+pending: CXR, blood and urine cultures, further medication reconciliation,
+family to bring any GP letters or discharge summaries they can find.

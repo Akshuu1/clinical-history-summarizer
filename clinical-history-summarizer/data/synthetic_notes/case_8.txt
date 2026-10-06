@@ -1,32 +1,31 @@
-TRIAGE NOTE — ED
-Time: 03:42
-Patient: SYNTH-008 | Approx 50s, Male | No ID presented
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-CC: Found unconscious by bystanders. GCS 10/15 on arrival.
+===== WARD ROUND NOTE =====
+Patient G4 | male | 74yo | Day 3 post-admission
 
-Bystander reports possible alcohol ingestion. Unknown medical history.
+Reason for admission: fall at home, query cause.
+Now: mobilising with physio, mild confusion still present (better than day 1)
 
-No medication list available.
+Active issues:
+ * recurrent falls (3rd this year)
+ * vascular dementia (mild-moderate, diagnosed 2022)
+ * AF - on anticoag
+ * HTN
 
-Allergies: Unknown.
+Drug chart (written up by admitting SHO — pharmacy reconciliation pending):
+Rivaroxaban 20mg OD with evening meal
+Bisoprolol 2.5mg OD
+Lercanidipine 10mg OD
+Zopiclone 3.75mg ON — prescribed at home, family says he takes it nightly
+Donepezil 5mg ON
 
-Vitals:
-- BP: 88/52 mmHg (LOW)
-- HR: 118 bpm
-- SpO2: 94% on 4L O2
-- Temp: 36.1°C
-- RR: 22
+ALLERGIES: sulfonamides (trimethoprim caused rash in 2020)
 
-Brief exam: Pupils equal and reactive. No external trauma. Breath smells of alcohol.
+Recent bloods (07/10/24):
+Na 131 (LOW), K 4.2, Cr 102, eGFR 58
+INR not done yet — urgent flagged
 
-Labs pending (sent):
-- Glucose stat: 3.1 mmol/L (LOW)
-- Blood cultures x2
-- Toxicology screen
-- ABG — result awaited
-- Ethanol level — result awaited
-
-Plan:
-- IV dextrose 50mL of 50% — given now
-- IV fluids — 0.9% NaCl 1L wide open
-- Monitor, reassess GCS in 30 mins
+Pending:
+CT head ordered (waiting for porter)
+Falls MDT to be arranged
+Review zopiclone — contributing to falls?

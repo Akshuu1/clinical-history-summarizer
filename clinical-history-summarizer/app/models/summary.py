@@ -1,102 +1,169 @@
 """
-Pydantic schemas for the ClinicalSummary pipeline.
+Pydantic schemas for the Clinical History Summarizer pipeline.
 
-Every data-bearing field carries a SourceReference so the API response
-always tells the consumer *where* in the original notes a claim came from.
-Fields that could not be validated are collected in `unverified_fields`.
+`unverified_fields` holds the names of any field (e.g. "chief_complaint"
+or "current_medications[1]") that could not be matched to a valid source
+line in the original notes. Any field named here should be treated as
+low-confidence by anyone reading the summary — it was returned by the LLM
+but could not be independently verified against a specific line of text.
 """
 
-from __future__ import annotations
-
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional
+from pydantic import BaseModel
 
 
 class SourceReference(BaseModel):
-    """Points back to an exact line in the normalised source text."""
-    source_line: int = Field(..., description="1-indexed line number in the normalised note")
-    source_text: str = Field(..., description="Verbatim text from that line confirming the claim")
+    """Points to the exact location in a source document that supports a claim."""
+
+    document_id: str
+    """
+    Identifier for the source document this reference points to.
+    For single-document inputs this will be a constant like "note_1";
+    for multi-document inputs it distinguishes which uploaded file
+    the claim was found in.
+    """
+
+    line_number: int
+    """
+    1-indexed line number within the identified document.
+    The validator checks that this line actually exists and contains
+    the quoted_text before accepting the reference as verified.
+    """
+
+    quoted_text: str
+    """
+    Verbatim text copied from that line in the source document.
+    Must be an exact substring of the line at line_number — the validator
+    rejects any reference where this text cannot be found at that position.
+    """
 
 
-class ChiefComplaint(SourceReference):
-    value: str
+class MedicationItem(BaseModel):
+    """A single medication entry extracted from the clinical notes."""
 
-
-class ActiveProblem(SourceReference):
-    value: str
-
-
-class MedicationItem(SourceReference):
     name: str
+    """Drug name as it appears in the source notes (not normalised)."""
+
     dose: Optional[str] = None
-    frequency: Optional[str] = None
-    route: Optional[str] = None
+    """
+    Dose as stated in the notes (e.g. "500mg", "10 units").
+    None if the dose was not mentioned or could not be extracted.
+    """
+
+    timing: Optional[str] = None
+    """
+    Dosing schedule or frequency (e.g. "twice daily", "PRN", "at night").
+    None if not stated in the notes.
+    """
+
+    source: Optional[SourceReference] = None
+    """
+    Citation pointing to the line in the source document that mentions
+    this medication. If None, this medication entry could not be traced
+    to a specific source line and will be added to unverified_fields.
+    """
 
 
-class LabResult(SourceReference):
-    test: str
-    result: str
+class LabResult(BaseModel):
+    """A single laboratory investigation result extracted from the notes."""
+
+    test_name: str
+    """Name of the test as it appears in the source (e.g. "Troponin I", "HbA1c")."""
+
+    value: Optional[str] = None
+    """
+    Result value as a string to preserve units and qualifiers
+    (e.g. "0.08 ng/mL", "7.9%", ">90 mL/min").
+    None if only the test name was mentioned without a result.
+    """
+
     date: Optional[str] = None
-    unit: Optional[str] = None
-    flag: Optional[str] = None  # e.g. "HIGH", "LOW", "CRITICAL"
+    """
+    Date the test was performed or reported, as stated in the notes.
+    None if not explicitly mentioned alongside this result.
+    """
 
-
-class AllergyItem(SourceReference):
-    substance: str
-    reaction: Optional[str] = None
-    severity: Optional[str] = None  # e.g. "mild", "anaphylaxis"
-
-
-class PendingItem(SourceReference):
-    value: str
+    source: Optional[SourceReference] = None
+    """
+    Citation pointing to the line in the source document that contains
+    this result. If None, the entry could not be traced to a specific
+    source line and will be added to unverified_fields.
+    """
 
 
 class ClinicalSummary(BaseModel):
     """
-    The core output schema of the extraction pipeline.
-    
-    After LLM extraction, the validator checks every SourceReference.
-    Any field whose citation fails validation is moved to `unverified_fields`
-    and its original data is preserved in `unverified_data`.
+    The complete structured output of one extraction run.
+
+    Every data field is paired with source citation(s). Any field that
+    the LLM returned but that could not be validated against the source
+    text is listed by name in `unverified_fields` and should be treated
+    as low-confidence.
     """
+
     patient_id: str
-    chief_complaint: Optional[ChiefComplaint] = None
-    active_problems: list[ActiveProblem] = Field(default_factory=list)
-    current_medications: list[MedicationItem] = Field(default_factory=list)
-    allergies: list[AllergyItem] = Field(default_factory=list)
-    recent_labs: list[LabResult] = Field(default_factory=list)
-    pending_items: list[PendingItem] = Field(default_factory=list)
+    """Unique identifier for the patient this summary belongs to."""
 
-    # ── Safety fields ──────────────────────────────────────────────────────────
-    unverified_fields: list[str] = Field(
-        default_factory=list,
-        description="Field names whose LLM citations could not be validated. "
-                    "Data in these fields should be treated as unconfirmed.",
-    )
-    unverified_data: dict = Field(
-        default_factory=dict,
-        description="Raw LLM output for unverified fields, preserved for audit.",
-    )
+    chief_complaint: Optional[str] = None
+    """
+    The primary reason for the visit or admission, in plain text.
+    None if not clearly stated in the notes.
+    """
 
-    # ── Meta ───────────────────────────────────────────────────────────────────
-    total_source_lines: int = 0
-    model_used: str = ""
-    extraction_version: str = "1.0"
+    chief_complaint_source: Optional[SourceReference] = None
+    """
+    Citation for the line that states the chief complaint.
+    If None and chief_complaint is set, "chief_complaint" will appear
+    in unverified_fields.
+    """
 
+    active_problems: List[str] = []
+    """
+    List of active diagnoses or clinical problems identified in the notes
+    (e.g. ["Type 2 Diabetes Mellitus", "Hypertension"]).
+    """
 
-class ExtractionRequest(BaseModel):
-    """Payload sent to /extract."""
-    patient_id: str = Field(..., description="Unique ID for this patient (can be synthetic)")
-    notes: str = Field(..., description="Raw multi-source clinical notes, pasted as plain text")
-    source_label: Optional[str] = Field(
-        default="general",
-        description="Optional label for the note source (e.g. 'ED admission', 'lab report')"
-    )
+    active_problems_sources: List[SourceReference] = []
+    """
+    One SourceReference per entry in active_problems, in the same order.
+    If the lengths differ, unmatched problems are added to unverified_fields.
+    """
 
+    current_medications: List[MedicationItem] = []
+    """
+    All medications currently prescribed or taken, each with optional
+    dose, timing, and a source citation embedded in the MedicationItem.
+    """
 
-class ExtractionResponse(BaseModel):
-    """Response from /extract."""
-    patient_id: str
-    summary: ClinicalSummary
-    raw_normalised_lines: list[str]
-    warnings: list[str] = Field(default_factory=list)
+    recent_labs: List[LabResult] = []
+    """
+    Recent laboratory results mentioned in the notes, each with optional
+    value, date, and source citation embedded in the LabResult.
+    """
+
+    allergies: List[str] = []
+    """
+    List of documented allergens (e.g. ["Penicillin", "Contrast dye"]).
+    Reactions are not separated here — see allergies_sources for context.
+    """
+
+    allergies_sources: List[SourceReference] = []
+    """
+    One SourceReference per entry in allergies, in the same order.
+    If the lengths differ, unmatched allergens are added to unverified_fields.
+    """
+
+    pending_items: List[str] = []
+    """
+    Tests, referrals, or actions documented as pending or outstanding
+    (e.g. ["Repeat Troponin at 3h", "Cardiology consult requested"]).
+    No source citations are tracked for pending items in this version.
+    """
+
+    unverified_fields: List[str] = []
+    """
+    Names of fields whose values could not be matched to a valid source line.
+    Examples: "chief_complaint", "current_medications[1]", "allergies[0]".
+    Consumers of this summary should treat these entries as low-confidence
+    and not act on them without independent verification.
+    """

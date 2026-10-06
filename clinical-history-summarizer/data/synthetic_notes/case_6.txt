@@ -1,34 +1,27 @@
-ADMISSION SUMMARY — Internal Medicine
-Patient: SYNTH-006 | 34F | Adm: 2024-10-05
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Reason for admission: Deliberate self-harm (superficial lacerations), now medically stable.
-Also presenting with poorly controlled Type 1 Diabetes.
+Pt: E9 / DOB ~1958 / seen 8/10/24
 
-Allergies: No known drug allergies.
+CC - chest pain, onset last night around 10pm. Described as pressure,
+7/10, radiates L arm. Had similar episode 6mo ago that "went away on its own".
+Diaphoresis present. No syncope.
 
-Psychiatric medications (confirmed with psychiatrist on call):
-- Sertraline 100mg once daily oral
-- Quetiapine 50mg at night oral
-- Diazepam 5mg PRN (not to exceed 10mg/day)
+Pmhx: T2DM (on meds), HTN, ex-smoker (quit ~10yrs ago)
 
-Diabetes medications:
-- Insulin Glargine 24 units SC at night
-- Insulin Novorapid — sliding scale (see chart)
+Meds (from patient — not verified against GP records):
+metformin - not sure of dose, says "the small ones twice a day"
+ramipril 5mg od
+amlodipine - patient says 5 or 10mg, not certain
 
-Active problems:
-- Type 1 Diabetes Mellitus — poorly controlled (HbA1c 10.2% — 2024-09-01)
-- Major Depressive Disorder — under psychiatric care
-- Borderline Personality Disorder (diagnosed 2021)
+Allergies: says he had a bad reaction to "an antibiotic" years ago
+but cannot recall which one or what happened. Nothing in the notes
+brought today.
 
-Labs:
-- Glucose: 21.4 mmol/L (HIGH) — 2024-10-05
-- HbA1c: 10.2% — 2024-09-01
-- Ketones (urine): negative — 2024-10-05
-- Creatinine: 82 umol/L
-- eGFR: >90 mL/min
+Ix:
+Trop I: 0.06 (lab ref <0.04) — HIGH — taken at 03:15
+ECG: ST depression V3-V5 (done on arrival)
 
-Pending:
-- Psychiatric review — expected morning ward round tomorrow
-- Diabetes nurse educator review
-- Social work referral (housing instability noted)
-- Safe discharge planning — not for same-day discharge
+Plan:
+- ACS protocol started
+- repeat trop at 0h+3 pending
+- cardiology to review

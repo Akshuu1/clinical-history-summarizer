@@ -1,43 +1,32 @@
-POST-OPERATIVE NOTE — Day 1
-Patient: SYNTH-005 | 55F | DOB: 1969-07-22
-Procedure: Laparoscopic cholecystectomy for acute cholecystitis
-Date of surgery: 2024-09-18
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-Allergies: Latex (contact dermatitis — documented, latex-free protocol in place)
-           Morphine (nausea and vomiting)
+Patient: D12
+Date: 15 October 2024
+Specialty: Neurology Outpatient
 
-Pre-op medications (home):
-- Metformin 1000mg BD — HELD peri-operatively
-- Ramipril 5mg OD — HELD peri-operatively
-- Rosuvastatin 20mg ON — continued
+CHIEF COMPLAINT:
+New onset right-sided weakness and slurred speech lasting approximately
+20 minutes, fully resolved before arrival. No residual deficit on examination.
 
-Post-op medications:
-- Paracetamol 1g QID IV x 24h then oral
-- Ondansetron 4mg IV TDS PRN nausea
-- Enoxaparin 40mg SC OD (DVT prophylaxis)
-- Tramadol 50mg oral Q6H PRN (morphine allergy — tramadol used instead)
+ACTIVE PROBLEMS:
+1. Probable TIA (transient ischaemic attack) — to be confirmed with imaging
+2. Hypertension — known, on treatment
+3. Hypercholesterolaemia — on statin therapy
 
-Current status:
-- Tolerating sips, no nausea
-- Drain output 30mL sero-sanguineous
-- Wound: intact, no bleeding
-- Ambulating with help
+CURRENT MEDICATIONS:
+Amlodipine 5 mg oral once daily
+Atorvastatin 40 mg oral at night
+Aspirin 75 mg oral once daily (started in ED today, loading dose given)
 
-Active problems:
-- Day 1 post laparoscopic cholecystectomy
-- T2DM (metformin held)
-- Hypertension (ramipril held)
-- Latex allergy (protocol active)
+ALLERGIES:
+Codeine — caused excessive sedation and confusion (documented 2021).
+No other known drug allergies.
 
-Labs (post-op day 1):
-- Hb: 10.2 g/dL (LOW)
-- WBC: 14.3 x10^9/L (HIGH — expected post-operative)
-- CRP: 87 mg/L (HIGH)
-- LFTs: ALT 42, AST 38, ALP 95, Bilirubin 18 — all within normal limits
+RECENT INVESTIGATIONS:
+CT brain (non-contrast): No acute infarct or haemorrhage — today
+LDL cholesterol: 4.2 mmol/L (HIGH) — 10 October 2024
 
-Pending:
-- Histopathology of gallbladder specimen
-- Resume Metformin when eating fully
-- Resume Ramipril when BP stable
-- Drain removal if output <20mL/24h
-- Dietician referral — post-op
+PENDING:
+MRI brain with DWI sequences — scheduled tomorrow.
+Carotid Doppler ultrasound — arranged.
+Cardiology review to exclude cardioembolic source.

@@ -1,47 +1,28 @@
-STROKE UNIT ADMISSION
-Patient: SYNTH-012 | 71M | Adm: 2024-09-30 02:15
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-CC: Sudden onset right arm and leg weakness, facial droop, slurred speech — 1 hour prior to arrival.
+pt M3 female 29yo
+admitted via ED following deliberate self-harm (superficial lacerations
+to forearm, medically managed, wounds dressed). now medically stable,
+awaiting psych review.
 
-Allergies: Warfarin (prior GI bleed — do not re-challenge).
+diabetes — type 1. "usually well controlled" per patient. no recent hba1c
+available. patient reports not always taking insulin when feeling unwell.
 
-Medications (home):
-- Clopidogrel 75mg OD (secondary prevention — prior TIA 2022)
-- Atorvastatin 80mg ON
-- Lisinopril 10mg OD
-- Amlodipine 5mg OD
+psych meds: patient mentions she "used to be on something" but stopped
+taking it a few months ago. name/dose not known. no current regular
+psychiatric medications confirmed.
 
-Exam (on arrival):
-- NIHSS: 14 (moderate-severe stroke)
-- Right hemiparesis (3/5 power)
-- Right facial droop
-- Dysarthria
-- No neglect, visual fields intact
+insulin: novorapid with meals (patient-reported doses: variable).
+lantus at night — dose also not stated clearly, says "about 20 units
+but it changes".
 
-Imaging:
-- CT Brain (non-contrast) 2024-09-30 02:40: No haemorrhage. Hyperdense MCA sign left.
-- CT Angiography: Left MCA M1 occlusion.
+allergy: patient denies allergies. however, nursing notes from a
+previous admission (2022) mention "morphine — nausea", though it is
+unclear if this was documented as an allergy or an adverse effect.
+previous notes not available for review today.
 
-Active problems:
-- Acute ischaemic stroke — left MCA territory
-- Hypertension
-- Hyperlipidaemia
-- Prior TIA (2022)
+glucose on admission: 3.1 mmol/L (LOW — corrected with oral glucose).
+no other bloods yet.
 
-Thrombolysis:
-- IV Alteplase 0.9mg/kg administered 2024-09-30 03:05 (onset to needle: 50 mins)
-- BP post-thrombolysis: 148/88 — monitoring Q15min
-
-Labs:
-- Glucose: 6.8 mmol/L
-- INR: 1.0 (not anticoagulated at admission)
-- Plt: 210 x10^9/L
-- LDL: 3.8 mmol/L (HIGH)
-
-Pending:
-- Mechanical thrombectomy assessment by IR team — urgent
-- MRI Brain with DWI — when stable
-- Swallow assessment — SALT referral
-- Physio + OT assessment
-- Echo to rule out cardioembolic source
-- Neurology review
+pending: psychiatric assessment (urgent), endocrine review re: T1DM
+management, social work input. safeguarding form completed.

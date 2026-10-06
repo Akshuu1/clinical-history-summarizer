@@ -1,41 +1,31 @@
-GERIATRIC FALLS ASSESSMENT
-Patient: SYNTH-014 | 82F | Date: 2024-10-02
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-CC: Third fall in 6 weeks. No loss of consciousness. Minor bruising.
+Outpatient rheum review — patient P2, male, ~50s.
+Seen by SpR, supervised by consultant.
 
-Allergies: Aspirin (asthma exacerbation). ACE inhibitors (angioedema — documented).
+reason for attendance: follow up RA, also raised by patient —
+new onset swelling right knee, started about 3 weeks ago. Query
+flare vs. new pathology.
 
-Medications (home — verified with carer):
-- Bisoprolol 5mg OD
-- Lercanidipine 10mg OD
-- Simvastatin 20mg ON
-- Omeprazole 20mg OD
-- Mirtazapine 15mg ON (for depression + sleep)
-- Zopiclone 3.75mg ON PRN (patient using nightly — CONCERN: fall risk)
-- Calcium + Vitamin D 500mg/800IU OD
+background: seropositive RA (RF+, anti-CCP+, diagnosed 2017).
+Previous trial of methotrexate — stopped due to "liver problem"
+(patient says LFTs were raised, does not know by how much;
+not sure if this means methotrexate is formally contraindicated
+or just needs monitoring). Currently on a biologic but patient
+cannot name it — "the injection I do at home every two weeks".
 
-Falls risk factors identified:
-- Polypharmacy (7 medications)
-- Zopiclone use — nightly (not PRN as prescribed) — HIGH FALL RISK
-- Postural hypotension: BP sitting 138/82, standing 104/62 (>20mmHg systolic drop)
-- Mirtazapine — sedating, contributes to fall risk
+Other problems: T2DM (diet-controlled, no meds), GORD.
 
-Active problems:
-- Recurrent falls (x3 in 6 weeks)
-- Postural hypotension
-- Depression (on Mirtazapine)
-- Osteoporosis (DEXA T-score -2.8 lumbar — 2023)
+Other meds: omeprazole 20mg OD, naproxen 500mg BD PRN
+(patient takes this regularly despite GORD — noted, counselled).
 
-Labs:
-- Vitamin D: 32 nmol/L (LOW — target >75)
-- PTH: 68 pg/mL (HIGH — secondary hyperparathyroidism)
-- TSH: 2.1 mIU/L (normal)
-- Creatinine: 95 umol/L
+Allergies: none stated. Patient unsure — "I just avoid things
+that disagree with me." No formal allergy documentation found
+in today's clinic letter.
 
-Pending:
-- Zopiclone taper and discontinuation plan
-- Physiotherapy — balance and gait training
-- DEXA repeat (last 2023)
-- Consider bisphosphonate for osteoporosis
-- OT home assessment
-- Increase Vitamin D to 2000IU OD
+bloods from last month: CRP 34 (HIGH), ESR 51 (HIGH), Hb 11.1 (borderline low).
+no bloods today, point-of-care CRP sent — result pending.
+
+plan: aspirate right knee if effusion confirmed. check biologic records
+via pharmacy. revisit methotrexate hepatotoxicity question with full
+liver screen before any future DMARD change. follow up in 6 weeks.

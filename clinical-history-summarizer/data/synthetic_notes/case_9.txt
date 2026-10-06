@@ -1,43 +1,26 @@
-OBSTETRIC ADMISSION NOTE
-Patient: SYNTH-009 | 28F | Gravida 2 Para 1 | POG: 32 weeks
-Date: 2024-10-04
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-CC: Severe headache, visual disturbance, and pedal oedema x 1 day.
+Patient H2. Seen in MAU 11 Oct. Referred from GP.
 
-Allergies: NKDA.
+hx: 58F, known DM2, referred with 2wk hx polyuria+polydipsia,
+blurred vision, 4kg wt loss. HbA1c sent by GP = 11.4% (very high, poorly
+controlled). normally managed in primary care, first hospital attendance
+in years.
 
-Medications (antenatal):
-- Folic acid 5mg OD
-- Ferrous sulphate 200mg TDS
-- Low-dose aspirin 75mg OD (started at 12 weeks for pre-eclampsia risk)
+Problems: T2DM (dx 2015), obesity (BMI 38 noted at GP), GORD
 
-Examination:
-- BP: 158/102 mmHg (HIGH)
-- Urine dipstick: 3+ protein
-- Oedema: bilateral pitting oedema up to knees
+Medication list from GP letter:
+metformin 1g BD
+sitagliptin 100mg OD
+omeprazole 20mg OD
+(GP letter also mentions "topical treatment for skin condition" —
+no further detail given)
 
-Active problems:
-- Severe pre-eclampsia (32 weeks gestation)
-- Gestational thrombocytopaenia (platelet count 89 x10^9/L)
+Allergies: NKDA per GP letter
 
-Labs:
-- Plt: 89 x10^9/L (LOW) — 2024-10-04
-- Creatinine: 74 umol/L
-- ALT: 62 U/L (HIGH — upper limit 40)
-- AST: 71 U/L (HIGH)
-- LDH: 480 U/L (HIGH)
-- Uric acid: 412 umol/L (HIGH)
-- 24h urine protein: 4.2g/day (HIGH) — pending formal lab confirmation
+bloods today: glucose 22.1 mmol/L (HIGH), HbA1c 11.4% (done at GP 3 days ago),
+renal fn normal (Cr 74, eGFR >90)
 
-Management started:
-- MgSO4 4g IV loading dose — given
-- MgSO4 1g/h IV infusion — ongoing
-- Labetalol 200mg oral BD started
-- Corticosteroids: Betamethasone 12mg IM x2 (fetal lung maturity)
-- Continuous CTG monitoring
-
-Pending:
-- Formal 24h urine protein result
-- Obstetric ultrasound — fetal biometry and Doppler
-- Anaesthesia review (for possible emergency CS)
-- Neonatology briefing — planned
+plan: diabetes review nurse, dietitian referral, consider intensification
+of hypoglycaemic therapy vs insulin initiation. ophthalmology referral
+for diabetic eye check (overdue by 2 years per GP records).

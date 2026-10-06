@@ -1,159 +1,187 @@
 """
-Source Reference Validator — the core safety layer.
+Citation Validator — the core safety layer (Prompt 5.2).
 
-For every SourceReference the LLM returns, this module checks:
-  1. The cited line number actually exists in the normalised lines list.
-  2. The source_text the model claims appears at that line is a
-     genuine substring of that line (case-insensitive, stripped).
+This module verifies every SourceReference the LLM returns. It does NOT
+trust the model's claims — it checks them independently against the raw
+source text.
 
-If EITHER check fails, the field is added to `unverified_fields`.
+For every field that has a SourceReference, it:
+  1. Looks up the actual text at that line_number in raw_notes.
+  2. Checks if quoted_text is genuinely present in that line, using a
+     normalised (lowercase, collapsed whitespace) substring match.
+  3. If the check FAILS: nulls out that field's source and adds the
+     field name to summary.unverified_fields.
+  4. If a field has NO source at all (was None from the LLM): also adds
+     it to unverified_fields.
 
-This code does NOT trust the LLM. It does the check itself.
+The public function is:
+
+    validate_source_references(summary: ClinicalSummary, raw_notes: str)
+        -> ClinicalSummary
+
+It is a pure function — it never mutates its inputs and has no side
+effects, making it straightforward to unit-test independently.
 """
 
 from __future__ import annotations
 
+import copy
 import re
-from typing import Any
+from typing import Optional
 
 from app.models.summary import (
     ClinicalSummary,
-    ActiveProblem,
     MedicationItem,
     LabResult,
-    AllergyItem,
-    PendingItem,
+    SourceReference,
 )
 
 
-def _normalise_for_comparison(text: str) -> str:
-    """Lowercase, collapse whitespace — for fuzzy-but-honest matching."""
+# ─────────────────────────────────────────────────────────────────────────────
+# Internal helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _normalise(text: str) -> str:
+    """
+    Lowercase and collapse all whitespace runs to a single space.
+    Used for tolerant-but-honest substring matching: the core claim must
+    genuinely appear in the line, not just be thematically related.
+    """
     return re.sub(r"\s+", " ", text.lower()).strip()
 
 
-def _citation_is_valid(
-    source_line_no: int,
-    source_text_claimed: str,
-    normalised_lines: list[str],
+def _citation_passes(
+    ref: Optional[SourceReference],
+    lines: list[str],
 ) -> bool:
     """
-    Returns True iff:
-      - source_line_no is within bounds (1-indexed)
-      - source_text_claimed is a substring of the actual line at that position
+    Return True iff ALL of the following hold:
+      - ref is not None
+      - ref.line_number is within bounds (1-indexed)
+      - _normalise(ref.quoted_text) is a substring of _normalise(lines[ref.line_number - 1])
+
+    If ANY condition fails, returns False.  The caller is responsible for
+    nulling out the source and marking the field as unverified.
     """
-    if source_line_no < 1 or source_line_no > len(normalised_lines):
+    if ref is None:
         return False
 
-    actual_line = normalised_lines[source_line_no - 1]  # convert to 0-indexed
+    if ref.line_number < 1 or ref.line_number > len(lines):
+        return False
 
-    # Allow partial match: the claimed excerpt just has to appear inside the line
-    claimed_norm = _normalise_for_comparison(source_text_claimed)
-    actual_norm = _normalise_for_comparison(actual_line)
-
-    return claimed_norm in actual_norm
+    actual_line = lines[ref.line_number - 1]          # 0-indexed access
+    return _normalise(ref.quoted_text) in _normalise(actual_line)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Public API
+# ─────────────────────────────────────────────────────────────────────────────
+
+def validate_source_references(
+    summary: ClinicalSummary,
+    raw_notes: str,
+) -> ClinicalSummary:
+    """
+    Verify every SourceReference in *summary* against *raw_notes*.
+
+    For each field that carries a citation:
+      - Valid citation  → kept as-is.
+      - Invalid citation → source is set to None; field name added to
+        unverified_fields.
+      - No citation at all → field name added to unverified_fields.
+
+    Returns a deep-copied, modified ClinicalSummary.  The original
+    *summary* object is never mutated.
+
+    Args:
+        summary:   The ClinicalSummary returned by extract_summary_with_sources().
+        raw_notes: The exact raw text that was originally sent to the LLM.
+
+    Returns:
+        A new ClinicalSummary with invalid / missing sources flagged.
+    """
+    # Work on a deep copy so this function is pure — no side effects.
+    s = copy.deepcopy(summary)
+    lines: list[str] = raw_notes.splitlines()
+    unverified: list[str] = list(s.unverified_fields)   # carry forward any LLM-flagged items
+
+    # ── chief_complaint ───────────────────────────────────────────────────────
+    if s.chief_complaint is not None:
+        if not _citation_passes(s.chief_complaint_source, lines):
+            s.chief_complaint_source = None
+            if "chief_complaint" not in unverified:
+                unverified.append("chief_complaint")
+
+    # ── active_problems ───────────────────────────────────────────────────────
+    for idx in range(len(s.active_problems)):
+        # Source list may be shorter than the problems list
+        ref = s.active_problems_sources[idx] if idx < len(s.active_problems_sources) else None
+        if not _citation_passes(ref, lines):
+            # Null out the source slot if it exists
+            if idx < len(s.active_problems_sources):
+                s.active_problems_sources[idx] = None   # type: ignore[assignment]
+            field_key = f"active_problems[{idx}]"
+            if field_key not in unverified:
+                unverified.append(field_key)
+
+    # ── current_medications ───────────────────────────────────────────────────
+    for idx, med in enumerate(s.current_medications):
+        if not _citation_passes(med.source, lines):
+            s.current_medications[idx] = MedicationItem(
+                name=med.name,
+                dose=med.dose,
+                timing=med.timing,
+                source=None,
+            )
+            field_key = f"current_medications[{idx}]"
+            if field_key not in unverified:
+                unverified.append(field_key)
+
+    # ── recent_labs ───────────────────────────────────────────────────────────
+    for idx, lab in enumerate(s.recent_labs):
+        if not _citation_passes(lab.source, lines):
+            s.recent_labs[idx] = LabResult(
+                test_name=lab.test_name,
+                value=lab.value,
+                date=lab.date,
+                source=None,
+            )
+            field_key = f"recent_labs[{idx}]"
+            if field_key not in unverified:
+                unverified.append(field_key)
+
+    # ── allergies ─────────────────────────────────────────────────────────────
+    for idx in range(len(s.allergies)):
+        ref = s.allergies_sources[idx] if idx < len(s.allergies_sources) else None
+        if not _citation_passes(ref, lines):
+            if idx < len(s.allergies_sources):
+                s.allergies_sources[idx] = None   # type: ignore[assignment]
+            field_key = f"allergies[{idx}]"
+            if field_key not in unverified:
+                unverified.append(field_key)
+
+    # ── pending_items ─────────────────────────────────────────────────────────
+    # No source citations are tracked for pending items (by design — Prompt 2.1).
+
+    # Deduplicate while preserving insertion order
+    s.unverified_fields = list(dict.fromkeys(unverified))
+
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Keep validate_summary as a thin alias so existing callers don't break
+# ---------------------------------------------------------------------------
 def validate_summary(
     summary: ClinicalSummary,
     normalised_lines: list[str],
 ) -> ClinicalSummary:
     """
-    Walk every cited field in the summary.
-    - Valid citations: kept as-is.
-    - Invalid citations: item removed from its list, field name added to
-      `unverified_fields`, raw data preserved in `unverified_data`.
+    Deprecated alias for validate_source_references().
 
-    Returns a new ClinicalSummary (the input is not mutated).
+    Accepts the old `normalised_lines: list[str]` signature for
+    backwards-compatibility with the route layer.  Internally delegates
+    to validate_source_references() by joining the lines.
     """
-    unverified_fields: list[str] = list(summary.unverified_fields)
-    unverified_data: dict[str, Any] = dict(summary.unverified_data)
-
-    # ── chief_complaint ────────────────────────────────────────────────────────
-    chief_complaint = summary.chief_complaint
-    if chief_complaint is not None:
-        if not _citation_is_valid(
-            chief_complaint.source_line,
-            chief_complaint.source_text,
-            normalised_lines,
-        ):
-            unverified_fields.append("chief_complaint")
-            unverified_data["chief_complaint"] = chief_complaint.model_dump()
-            chief_complaint = None
-
-    # ── active_problems ────────────────────────────────────────────────────────
-    valid_problems: list[ActiveProblem] = []
-    bad_problems: list[dict] = []
-    for item in summary.active_problems:
-        if _citation_is_valid(item.source_line, item.source_text, normalised_lines):
-            valid_problems.append(item)
-        else:
-            bad_problems.append(item.model_dump())
-    if bad_problems:
-        if "active_problems" not in unverified_fields:
-            unverified_fields.append("active_problems")
-        unverified_data["active_problems"] = bad_problems
-
-    # ── current_medications ────────────────────────────────────────────────────
-    valid_meds: list[MedicationItem] = []
-    bad_meds: list[dict] = []
-    for item in summary.current_medications:
-        if _citation_is_valid(item.source_line, item.source_text, normalised_lines):
-            valid_meds.append(item)
-        else:
-            bad_meds.append(item.model_dump())
-    if bad_meds:
-        if "current_medications" not in unverified_fields:
-            unverified_fields.append("current_medications")
-        unverified_data["current_medications"] = bad_meds
-
-    # ── allergies ──────────────────────────────────────────────────────────────
-    valid_allergies: list[AllergyItem] = []
-    bad_allergies: list[dict] = []
-    for item in summary.allergies:
-        if _citation_is_valid(item.source_line, item.source_text, normalised_lines):
-            valid_allergies.append(item)
-        else:
-            bad_allergies.append(item.model_dump())
-    if bad_allergies:
-        if "allergies" not in unverified_fields:
-            unverified_fields.append("allergies")
-        unverified_data["allergies"] = bad_allergies
-
-    # ── recent_labs ────────────────────────────────────────────────────────────
-    valid_labs: list[LabResult] = []
-    bad_labs: list[dict] = []
-    for item in summary.recent_labs:
-        if _citation_is_valid(item.source_line, item.source_text, normalised_lines):
-            valid_labs.append(item)
-        else:
-            bad_labs.append(item.model_dump())
-    if bad_labs:
-        if "recent_labs" not in unverified_fields:
-            unverified_fields.append("recent_labs")
-        unverified_data["recent_labs"] = bad_labs
-
-    # ── pending_items ──────────────────────────────────────────────────────────
-    valid_pending: list[PendingItem] = []
-    bad_pending: list[dict] = []
-    for item in summary.pending_items:
-        if _citation_is_valid(item.source_line, item.source_text, normalised_lines):
-            valid_pending.append(item)
-        else:
-            bad_pending.append(item.model_dump())
-    if bad_pending:
-        if "pending_items" not in unverified_fields:
-            unverified_fields.append("pending_items")
-        unverified_data["pending_items"] = bad_pending
-
-    return summary.model_copy(
-        update={
-            "chief_complaint": chief_complaint,
-            "active_problems": valid_problems,
-            "current_medications": valid_meds,
-            "allergies": valid_allergies,
-            "recent_labs": valid_labs,
-            "pending_items": valid_pending,
-            "unverified_fields": unverified_fields,
-            "unverified_data": unverified_data,
-        }
-    )
+    raw_notes = "\n".join(normalised_lines)
+    return validate_source_references(summary, raw_notes)

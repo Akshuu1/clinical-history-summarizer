@@ -1,33 +1,30 @@
-PAEDIATRIC ED NOTE
-Patient: SYNTH-004 | Age: 7 years, Male | Weight: 22kg
-Date: 2024-09-20
+# SYNTHETIC DATA — NOT A REAL PATIENT
 
-CC: Fever 39.5°C x 2 days, ear pain right side, reduced hearing.
+Patient ID: C3
+Date: 30 September 2024
+Setting: Outpatient Clinic — Haematology
 
-Allergies: Amoxicillin (urticaria — age 4)
+CHIEF COMPLAINT:
+Increasing fatigue and pallor over six weeks.
+Patient reports feeling breathless climbing one flight of stairs.
 
-Medications: None regular.
+ACTIVE PROBLEMS:
+1. Iron-deficiency anaemia (new diagnosis today)
+2. Uterine fibroids (known, managed conservatively)
+3. Osteoporosis (on treatment)
 
-History: Mother reports child pulling at right ear for 2 days.
-Fever up to 39.8°C at home. No vomiting. Eating reduced. School-going.
+CURRENT MEDICATIONS:
+Tranexamic acid 1 g oral three times daily (during menstruation only)
+Alendronate 70 mg oral once weekly (taken on empty stomach)
+Calcium carbonate 500 mg with vitamin D3 800 IU oral once daily
 
-Examination:
-- Tympanic membrane: Right TM red, bulging. Left TM normal.
-- Throat: Mild erythema, no exudate.
-- Lymph nodes: Right submandibular lymphadenopathy.
+ALLERGIES:
+No known allergies.
 
-Active problems:
-- Acute otitis media, right ear (bacterial, probable)
+RECENT INVESTIGATIONS:
+Haemoglobin: 7.8 g/dL (LOW) — 28 September 2024
+Serum ferritin: 4 ng/mL (LOW, depleted stores) — 28 September 2024
 
-Labs: Not done (clinical diagnosis).
-
-Management:
-- Azithromycin 250mg oral once daily x 5 days (given amoxicillin allergy)
-- Paracetamol 360mg Q6H PRN for fever/pain
-- Ibuprofen 200mg Q8H PRN (with food)
-- Follow up in 3 days or sooner if worsening
-- Audiometry if not resolved in 4 weeks
-
-Pending:
-- Review in 3 days
-- Audiometry if prolonged — outpatient referral
+PENDING:
+Upper and lower GI endoscopy to exclude occult bleeding source.
+IV iron infusion planned for next week if no contraindication found.
