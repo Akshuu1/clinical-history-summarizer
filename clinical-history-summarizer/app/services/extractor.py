@@ -291,3 +291,261 @@ def extract_summary_with_sources(raw_notes: str, patient_id: str) -> ClinicalSum
     # validate_source_references() nulls out bad/missing sources and populates
     # unverified_fields for anything it cannot confirm.
     return validate_source_references(summary, raw_notes)
+
+
+# =============================================================================
+# Stage 6 — Patient-friendly rewrite (mode=patient)
+# =============================================================================
+
+_PATIENT_FRIENDLY_PROMPT = """\
+You are a medical communication assistant. Your job is to rewrite a \
+structured clinical summary into plain, friendly language that a patient \
+can easily understand. Use short sentences. Avoid medical jargon; if a \
+medical term is necessary, explain it in plain English in parentheses \
+immediately after.
+
+CRITICAL RULES — you must follow all of these:
+1. Do NOT add any new medical information, interpretation, diagnosis, or \
+   advice that is not already present in the input.
+2. Do NOT mention any field that is listed in "unverified_fields" — omit \
+   it silently from the patient output.
+3. Do NOT mention any field that is listed in "missing_fields".
+4. If a field is empty or null, skip it — do not say "no allergies were \
+   documented", just leave that section out.
+5. Write in second person ("You came in because...", "Your medications \
+   include...").
+6. Keep the output under 300 words.
+7. Return ONLY the plain-text patient summary — no JSON, no markdown \
+   headers, no bullet points. Just clear, friendly prose paragraphs.
+
+VERIFIED CLINICAL SUMMARY (JSON):
+{summary_json}
+
+FIELDS TO OMIT (unverified or missing):
+{skip_fields}
+
+Write the patient-friendly summary now:
+"""
+
+
+def generate_patient_friendly_summary(
+    summary: "ClinicalSummary",
+) -> str:
+    """
+    Makes a second LLM call that rewrites only the verified fields of a
+    ClinicalSummary into plain, patient-readable language.
+
+    Fields in unverified_fields or missing_fields are silently omitted
+    so the patient never receives unconfirmed information.
+
+    Returns:
+        A plain-text string suitable for showing directly to a patient.
+    """
+    client = _make_client()
+
+    # Build a trimmed view of the summary — only verified, non-empty data
+    skip = set(summary.unverified_fields) | set(summary.missing_fields)
+
+    # Give the LLM a clean dict of only the fields we want included
+    verified_data = {
+        "chief_complaint": summary.chief_complaint,
+        "active_problems": summary.active_problems,
+        "current_medications": [
+            {
+                "name": m.name,
+                "dose": m.dose,
+                "timing": m.timing,
+            }
+            for i, m in enumerate(summary.current_medications)
+            if f"current_medications[{i}]" not in skip
+        ],
+        "recent_labs": [
+            {
+                "test_name": lab.test_name,
+                "value": lab.value,
+                "date": lab.date,
+            }
+            for i, lab in enumerate(summary.recent_labs)
+            if f"recent_labs[{i}]" not in skip
+        ],
+        "allergies": summary.allergies,
+        "pending_items": summary.pending_items,
+    }
+
+    # Remove top-level fields that are flagged as unverified/missing
+    if "chief_complaint" in skip:
+        verified_data["chief_complaint"] = None
+    if "active_problems" in skip:
+        verified_data["active_problems"] = []
+
+    prompt = _PATIENT_FRIENDLY_PROMPT.format(
+        summary_json=json.dumps(verified_data, indent=2),
+        skip_fields=", ".join(sorted(skip)) if skip else "none",
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=600,
+        )
+        text = response.choices[0].message.content or ""
+        return text.strip()
+    except Exception as exc:
+        logger.warning("Patient-friendly rewrite failed: %s", exc)
+        return (
+            "A plain-language version of your summary could not be generated. "
+            "Please ask your doctor to explain the clinical summary above."
+        )
+
+
+# =============================================================================
+# Stage 7 — Two-stage schema-free extraction
+# =============================================================================
+
+_STAGE1_SECTION_PROMPT = """\
+You are a clinical document analyst. Read the following clinical notes \
+and identify every distinct type of information the doctor has written.
+
+Return ONLY a valid JSON array — no markdown, no prose. Each element \
+in the array represents one identified section and must have exactly \
+these keys:
+  "section_label"  — a short, descriptive label in snake_case \
+                     (e.g. "chief_complaint", "medications", "diet_advice", \
+                     "referral_notes", "lifestyle_instructions", \
+                     "follow_up_date", "vital_signs")
+  "line_numbers"   — list of 1-indexed line numbers that contain this \
+                     section's content
+  "quoted_text"    — the verbatim text from those lines (concatenated if \
+                     multiple lines)
+
+Do not force any fixed schema. Just describe what IS in the document.
+If two adjacent lines clearly belong to the same topic, group them.
+
+Clinical notes (line-tagged):
+---
+{tagged_notes}
+---
+"""
+
+_STAGE2_MAP_PROMPT = """\
+You are a clinical data structuring assistant. You have been given a list \
+of sections identified in a clinical document (Step 1 output) and you must \
+now map each section to the closest standard clinical schema field.
+
+The standard fields are:
+  chief_complaint, active_problems, current_medications, recent_labs, \
+  allergies, pending_items
+
+Rules:
+1. Map each section_label to one of the standard fields above ONLY if \
+   the mapping is clear and obvious (e.g. "medications" → \
+   "current_medications", "presenting_complaint" → "chief_complaint").
+2. If a section does NOT clearly map to any standard field, mark it \
+   as "extra" — it will go into raw_extra_fields.
+3. For mapped sections, extract the data in exactly the same citation \
+   format required by the main extraction schema (with line_number and \
+   quoted_text for each item).
+4. For extra sections, preserve the section_label and quoted_text as-is.
+
+Return ONLY a valid JSON object with exactly these top-level keys:
+{{
+  "patient_id": "{patient_id}",
+  "chief_complaint": string or null,
+  "chief_complaint_source": {{"document_id":"notes","line_number":N,"quoted_text":"..."}} or null,
+  "active_problems": [...],
+  "active_problems_sources": [...],
+  "current_medications": [...each with name/dose/timing/source...],
+  "recent_labs": [...each with test_name/value/date/source...],
+  "allergies": [...],
+  "allergies_sources": [...],
+  "pending_items": [...strings...],
+  "unverified_fields": [],
+  "missing_fields": [],
+  "raw_extra_fields": {{
+    "section_label": {{"content": "...", "line_numbers": [...], "quoted_text": "..."}}
+  }}
+}}
+
+Step 1 identified sections:
+{sections_json}
+
+Original notes (line-tagged, for reference):
+---
+{tagged_notes}
+---
+"""
+
+
+def extract_summary_two_stage(raw_notes: str, patient_id: str) -> "ClinicalSummary":
+    """
+    Two-stage schema-free extraction.
+
+    Stage 1: Ask the LLM to identify, free-form, what distinct sections
+             exist in the document — no schema imposed.
+    Stage 2: Pass the section list back and ask it to map sections to
+             ClinicalSummary fields. Anything that doesn't clearly map
+             goes into raw_extra_fields.
+
+    The result is then passed through validate_source_references() exactly
+    like the single-stage pipeline.
+
+    Keeps extract_summary_with_sources() unchanged — this is an
+    alternative, not a replacement.
+    """
+    client = _make_client()
+
+    # Pre-process: tag lines [L1], [L2], ...
+    lines = raw_notes.splitlines()
+    tagged_notes = "\n".join(
+        f"[L{i}] {line}" for i, line in enumerate(lines, 1)
+    )
+
+    # ── Stage 1: free-form section identification ────────────────────────────
+    stage1_prompt = _STAGE1_SECTION_PROMPT.format(tagged_notes=tagged_notes)
+    raw1 = _call_llm(client, stage1_prompt, max_tokens=1000)
+    data1 = _parse_json(raw1, patient_id)
+    if not isinstance(data1, list):
+        # If the model wrapped it in an object, try to extract the list
+        if isinstance(data1, dict) and "sections" in data1:
+            data1 = data1["sections"]
+        else:
+            logger.warning(
+                "Stage 1 did not return a list for patient_id=%r — "
+                "falling back to single-stage extraction.",
+                patient_id,
+            )
+            return extract_summary_with_sources(raw_notes, patient_id)
+
+    logger.info(
+        "Two-stage extraction: Stage 1 identified %d sections for patient_id=%r",
+        len(data1), patient_id,
+    )
+
+    # ── Stage 2: map sections to schema ─────────────────────────────────────
+    stage2_prompt = _STAGE2_MAP_PROMPT.format(
+        patient_id=patient_id,
+        sections_json=json.dumps(data1, indent=2),
+        tagged_notes=tagged_notes,
+    )
+    raw2 = _call_llm(client, stage2_prompt, max_tokens=2000)
+    data2 = _parse_json(raw2, patient_id)
+
+    # Ensure patient_id is set
+    if isinstance(data2, dict):
+        data2["patient_id"] = patient_id
+
+    # ── Parse + validate ─────────────────────────────────────────────────────
+    try:
+        summary = ClinicalSummary(**data2)
+    except ValidationError as exc:
+        logger.error(
+            "Two-stage schema validation failed for patient_id=%r: %s",
+            patient_id, exc,
+        )
+        raise ExtractionError(
+            f"Two-stage schema mismatch for patient '{patient_id}': {exc}"
+        ) from exc
+
+    return validate_source_references(summary, raw_notes)

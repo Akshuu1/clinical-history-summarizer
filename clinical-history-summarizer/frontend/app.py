@@ -187,10 +187,21 @@ Plan:
 
 
 # ── Sidebar ─────────────────────────────────────────────────────────────────────
+# ── Settings sidebar ──────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ Settings")
 
     patient_id = st.text_input("Patient ID", value="case_demo")
+
+    mode = st.radio(
+        "Output mode",
+        options=["clinical", "patient"],
+        format_func=lambda m: "🩺 Clinical (default)" if m == "clinical" else "👤 Patient-friendly",
+        help=(
+            "Clinical: structured JSON with citations for clinical staff.\n"
+            "Patient: adds a plain-language summary omitting unverified fields."
+        ),
+    )
 
     st.divider()
     st.markdown("**API**")
@@ -253,7 +264,8 @@ if extract_btn:
             resp = requests.post(
                 f"{API_BASE}/extract",
                 json={"patient_id": patient_id, "raw_notes": notes_input},
-                timeout=90,
+                params={"mode": mode},
+                timeout=120,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -273,6 +285,7 @@ if extract_btn:
     total = stats["total_fields_extracted"]
     verified = stats["verified_count"]
     unverif  = stats["unverified_count"]
+    missing_ct = stats.get("missing_count", 0)
     pct = int(100 * verified / total) if total else 0
     color = "#2e7d32" if pct >= 80 else "#f57c00" if pct >= 50 else "#c62828"
 
@@ -281,10 +294,39 @@ if extract_btn:
         f'<b style="font-size:1.05em">Extraction complete</b> &nbsp;|&nbsp; '
         f'<b style="color:{color}">{verified}/{total} fields verified ({pct}%)</b>'
         f'{f" &nbsp;|&nbsp; <b style=\'color:#e53935\'>{unverif} unverified</b>" if unverif else ""}'
+        f'{f" &nbsp;|&nbsp; <b style=\'color:#fb8c00\'>{missing_ct} not mentioned</b>" if missing_ct else ""}'
         f'&nbsp;|&nbsp; Stored as summary #{data["stored_summary_id"]}'
         f'</div>',
         unsafe_allow_html=True,
     )
+
+    # ── Missing fields banner ───────────────────────────────────────────────────
+    missing_fields = summary.get("missing_fields", [])
+    if missing_fields:
+        readable = ", ".join(
+            f.replace("_", " ").title() for f in missing_fields
+        )
+        st.info(
+            f"ℹ️ **This note didn't mention:** {readable}.  "
+            f"Consider asking the patient directly or checking other records."
+        )
+
+    # ── Patient-friendly summary panel ─────────────────────────────────────────
+    if data.get("patient_friendly_summary"):
+        with st.expander("👤 Patient-friendly summary (plain language)", expanded=True):
+            st.markdown(
+                f'<div style="background:#0d2137; border-left: 4px solid #42a5f5; '
+                f'padding: 14px 18px; border-radius: 6px; font-size: 0.97em; line-height: 1.7">'
+                f'{data["patient_friendly_summary"]}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                "⚠️ This is an AI-generated plain-language summary for the patient. "
+                "It contains only fields that were independently verified against "
+                "the source notes. Unverified fields are omitted. "
+                "This is NOT medical advice."
+            )
 
     # ── Two-column layout ───────────────────────────────────────────────────────
     left_col, right_col = st.columns([1, 1], gap="large")

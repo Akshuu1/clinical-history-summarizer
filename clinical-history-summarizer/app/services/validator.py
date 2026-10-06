@@ -172,6 +172,9 @@ def validate_source_references(
     # Deduplicate while preserving insertion order
     s.unverified_fields = list(dict.fromkeys(unverified))
 
+    # Detect fields entirely absent from the notes (separate from unverified)
+    s = detect_missing_fields(s)
+
     return s
 
 
@@ -191,3 +194,65 @@ def validate_summary(
     """
     raw_notes = "\n".join(normalised_lines)
     return validate_source_references(summary, raw_notes)
+
+
+# ---------------------------------------------------------------------------
+# Missing field detection
+# ---------------------------------------------------------------------------
+def detect_missing_fields(s: ClinicalSummary) -> ClinicalSummary:
+    """
+    Populate `missing_fields` with the names of core fields that appear
+    to be entirely absent from the notes.
+
+    A field is "missing" (not just empty) when:
+      - Its value is empty / None   AND
+      - The LLM never cited any source line for it   AND
+      - It is not already in unverified_fields (which means at least
+        something was found — just unconfirmable)
+
+    This is distinct from unverified_fields:
+      unverified = found something, but citation is bad
+      missing    = the doctor simply didn't write anything for this category
+    """
+    missing: list[str] = []
+    already_flagged = set(s.unverified_fields)
+
+    # chief_complaint: missing if None AND no source was even attempted
+    if (
+        s.chief_complaint is None
+        and s.chief_complaint_source is None
+        and "chief_complaint" not in already_flagged
+    ):
+        missing.append("chief_complaint")
+
+    # active_problems: missing if empty AND no sources were cited
+    if (
+        not s.active_problems
+        and not s.active_problems_sources
+        and not any(f.startswith("active_problems") for f in already_flagged)
+    ):
+        missing.append("active_problems")
+
+    # current_medications: missing if empty list with no prior citation attempts
+    if (
+        not s.current_medications
+        and not any(f.startswith("current_medications") for f in already_flagged)
+    ):
+        missing.append("current_medications")
+
+    # recent_labs: missing if empty list with no prior citation attempts
+    if (
+        not s.recent_labs
+        and not any(f.startswith("recent_labs") for f in already_flagged)
+    ):
+        missing.append("recent_labs")
+
+    # allergies: only flag as missing if empty AND allergies_sources is also
+    # empty (NKDA cases will have allergies=[] but allergies_sources was
+    # non-empty before the orphan cleanup — we can't re-detect that here,
+    # so we skip allergies to avoid false positives on NKDA)
+    # pending_items: no source citations tracked, so we can't distinguish
+    # "not mentioned" from "not applicable" — skip
+
+    s.missing_fields = missing
+    return s
