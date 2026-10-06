@@ -119,6 +119,14 @@ Rules:
 or alter capitalisation/punctuation.
 - Do not include the [Ln] tag itself in quoted_text.
 - If information is missing, use null or []. Never guess or invent facts.
+- CRITICAL — current_medications: only include medications the patient was \
+ALREADY taking BEFORE this clinical encounter. If the notes say "None regular" \
+or similar under medications, set current_medications to []. Any drug that was \
+just commenced, started, or prescribed during this encounter belongs in \
+pending_items — not current_medications.
+- Provide ONE source object per active_problem, not one source for the whole \
+list. If two problems are on the same line, cite that line number twice with \
+different quoted_text for each problem.
 
 Clinical notes (line-tagged):
 ---

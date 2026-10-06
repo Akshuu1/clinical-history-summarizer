@@ -160,6 +160,12 @@ def validate_source_references(
             if field_key not in unverified:
                 unverified.append(field_key)
 
+    # If allergies is empty (NKDA), strip any orphan sources the LLM attached.
+    # Keeping them would be misleading — they look like citations for allergens
+    # that don't exist in the list.
+    if not s.allergies:
+        s.allergies_sources = []
+
     # ── pending_items ─────────────────────────────────────────────────────────
     # No source citations are tracked for pending items (by design — Prompt 2.1).
 
