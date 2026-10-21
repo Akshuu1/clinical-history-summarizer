@@ -32,6 +32,19 @@ chief_complaint, active_problems, current_medications, recent_labs,
 allergies, pending_items, unverified_fields — each field (except 
 unverified_fields) should support a source citation.
 
+## Clinical Instructions (ANM Guidelines)
+See `ANM_INSTRUCTIONS.md` for the 10 governing extraction and safety rules:
+1. Source fidelity
+2. Evidence versus inference
+3. Uncertainty handling
+4. Differential quality
+5. Completeness
+6. No unsupported causality
+7. No invented reference ranges
+8. No redundant sections (doctor plans vs AI next steps)
+9. Consistent empty fields ("Not mentioned in notes")
+10. Clinical safety & red flags
+
 ## Current Status
 Stage 5 complete — source-traced extraction pipeline working end-to-end.
 Stage 6 complete — PostgreSQL storage layer set up and migrated.

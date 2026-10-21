@@ -25,9 +25,12 @@ effects, making it straightforward to unit-test independently.
 
 from __future__ import annotations
 
+import logging
 import copy
 import re
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from app.models.summary import (
     ClinicalSummary,
@@ -121,11 +124,17 @@ def validate_source_references(
 
     # Helper for generic list+source fields
     def _validate_list_with_sources(field_name: str, item_list: list[str], source_list: list):
+        if len(item_list) != len(source_list):
+            logger.warning(
+                "Field '%s': item count (%d) != source count (%d) — "
+                "LLM returned a malformed response for this field.",
+                field_name, len(item_list), len(source_list)
+            )
         for idx in range(len(item_list)):
             ref = source_list[idx] if idx < len(source_list) else None
             if not _citation_passes(ref, lines):
                 if idx < len(source_list):
-                    source_list[idx] = None
+                    source_list.pop(idx)
                 field_key = f"{field_name}[{idx}]"
                 if field_key not in unverified:
                     unverified.append(field_key)
@@ -175,23 +184,13 @@ def validate_source_references(
     return s
 
 
-# ---------------------------------------------------------------------------
-# Keep validate_summary as a thin alias so existing callers don't break
-# ---------------------------------------------------------------------------
-def validate_summary(
-    summary: ClinicalSummary,
-    normalised_lines: list[str],
-) -> ClinicalSummary:
-    raw_notes = "\n".join(normalised_lines)
-    return validate_source_references(summary, raw_notes)
-
 
 # ---------------------------------------------------------------------------
 # Missing field detection
 # ---------------------------------------------------------------------------
 def detect_missing_fields(s: ClinicalSummary) -> ClinicalSummary:
     missing: list[str] = []
-    already_flagged = set(s.unverified_fields)
+    already_flagged = set(s.unverified_fields) | set(s.missing_fields)
 
     def _check_missing_single(field_name: str, val, source):
         if val is None and source is None and field_name not in already_flagged:

@@ -13,7 +13,7 @@ API routes for the extraction pipeline.
 import logging
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -25,8 +25,10 @@ from app.services.extractor import (
     extract_summary_two_stage,
     generate_patient_friendly_summary,
     ExtractionError,
-    MODEL,
+    RateLimitExceededError,
+    JSONParseError,
 )
+from app.services.prescription_parser import extract_text_from_prescription
 from app.models.summary import ClinicalSummary
 
 logger = logging.getLogger(__name__)
@@ -39,8 +41,19 @@ router = APIRouter()
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ExtractRequest(BaseModel):
-    raw_notes: str = Field(..., description="Raw clinical notes text.")
-    patient_id: str = Field(..., description="Unique identifier for this patient.")
+    raw_notes: str = Field(
+        ...,
+        min_length=10,
+        max_length=50000,
+        description="Raw clinical notes text."
+    )
+    patient_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        pattern=r"^[a-zA-Z0-9_\-]+$",
+        description="Unique patient identifier — alphanumeric, hyphens and underscores only."
+    )
 
 
 class SummaryStats(BaseModel):
@@ -56,12 +69,7 @@ class ExtractResponse(BaseModel):
     summary: ClinicalSummary
     summary_stats: SummaryStats
     stored_summary_id: int
-    patient_friendly_summary: Optional[str] = Field(
-        None,
-        description="Plain-language rewrite for the patient. "
-                    "Only present when ?mode=patient is set. "
-                    "Contains only verified fields — unverified fields are silently omitted.",
-    )
+    patient_friendly_summary: Optional[str] = None
 
 
 class StoredSummaryResponse(BaseModel):
@@ -105,7 +113,15 @@ def _compute_stats(summary: ClinicalSummary) -> SummaryStats:
     total += len(summary.recent_labs)
     total += len(summary.allergies)
 
-    unverified = min(len(summary.unverified_fields), total)
+    unverified = len(summary.unverified_fields)
+    if unverified > total:
+        logger.warning(
+            "unverified_fields count (%d) exceeds total extracted "
+            "fields (%d) for patient=%r — possible field name mismatch "
+            "in validator. unverified_fields: %s",
+            unverified, total,
+            summary.patient_id, summary.unverified_fields,
+        )
     return SummaryStats(
         total_fields_extracted=total,
         verified_count=total - unverified,
@@ -120,6 +136,7 @@ def _persist(
     raw_notes: str,
     summary: ClinicalSummary,
     stats: SummaryStats,
+    model_used: str,
 ) -> int:
     """Write Patient, SourceNote, Summary rows in a single transaction."""
     try:
@@ -132,7 +149,7 @@ def _persist(
             summary_dict=summary.model_dump(mode="json"),
             verified_count=stats.verified_count,
             unverified_count=stats.unverified_count,
-            model_used=MODEL,
+            model_used=model_used,
         )
         db.commit()
         logger.info(
@@ -159,10 +176,15 @@ def _persist(
 def extract_raw(request: ExtractRequest) -> dict:
     """Stage 4: plain dict response, no source tracing, no DB writes."""
     try:
-        return extract_summary_raw(
+        result, _ = extract_summary_raw(
             raw_notes=request.raw_notes,
             patient_id=request.patient_id,
         )
+        return result
+    except RateLimitExceededError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except JSONParseError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except ExtractionError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
@@ -173,55 +195,44 @@ def extract_raw(request: ExtractRequest) -> dict:
 
 @router.post(
     "/extract",
-    summary="[Stage 5+6] Cited extraction, validation, storage — with optional patient mode",
+    summary="Comprehensive cited extraction, validation, and storage",
     tags=["Extraction"],
     response_model=ExtractResponse,
 )
 def extract_with_sources(
     request: ExtractRequest,
-    mode: Literal["clinical", "patient"] = Query(
-        default="clinical",
-        description=(
-            "Output mode. "
-            "'clinical' (default): structured JSON summary for clinical use. "
-            "'patient': adds `patient_friendly_summary` — a plain-language rewrite "
-            "of only the verified fields, suitable for handing to the patient. "
-            "Unverified and missing fields are silently omitted from patient text."
-        ),
-    ),
+    mode: Literal["clinical", "patient"] = Query(default="clinical"),
     db: Session = Depends(get_db),
 ) -> ExtractResponse:
     """
-    Main production endpoint.
+    Main production endpoint — single comprehensive output.
 
     Pipeline:
       1. Tag lines [L1], [L2], ...
-      2. LLM extraction with verbatim citation requirement.
+      2. LLM extracts all structured fields + narrative_summary + next_steps
+         + doctor_recommendations in one call.
       3. Parse into ClinicalSummary.
       4. Validate citations independently.
-      5. Detect missing fields (fields not mentioned at all).
+      5. Detect missing fields.
       6. Compute summary_stats.
-      7. Persist to DB (Patient → SourceNote → Summary).
-      8. [mode=patient only] Second LLM call rewrites verified fields
-         into plain patient language — unverified/missing fields omitted.
+      7. Persist to DB.
     """
-    # ── 1–5. Extract + validate ────────────────────────────────────────────
     try:
-        summary = extract_summary_with_sources(
+        summary, model_used_actual = extract_summary_with_sources(
             raw_notes=request.raw_notes,
             patient_id=request.patient_id,
         )
+    except RateLimitExceededError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except JSONParseError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except ExtractionError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
-    # ── 6. Stats ───────────────────────────────────────────────────────────
     stats = _compute_stats(summary)
+    stored_id = _persist(db, request.patient_id, request.raw_notes, summary, stats, model_used_actual)
 
-    # ── 7. Persist ─────────────────────────────────────────────────────────
-    stored_id = _persist(db, request.patient_id, request.raw_notes, summary, stats)
-
-    # ── 8. Patient-friendly rewrite ────────────────────────────────────────
-    patient_text: Optional[str] = None
+    patient_text = None
     if mode == "patient":
         patient_text = generate_patient_friendly_summary(summary)
 
@@ -260,15 +271,19 @@ def extract_two_stage(
     alongside the standard clinical fields.
     """
     try:
-        summary = extract_summary_two_stage(
+        summary, model_used_actual = extract_summary_two_stage(
             raw_notes=request.raw_notes,
             patient_id=request.patient_id,
         )
+    except RateLimitExceededError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except JSONParseError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except ExtractionError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
     stats = _compute_stats(summary)
-    stored_id = _persist(db, request.patient_id, request.raw_notes, summary, stats)
+    stored_id = _persist(db, request.patient_id, request.raw_notes, summary, stats, model_used_actual)
 
     patient_text = None
     if mode == "patient":
@@ -316,3 +331,52 @@ def get_summary(
         created_at=row.created_at.isoformat(),
         summary=ClinicalSummary(**row.summary_json),  # type: ignore
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /upload-prescription
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/upload-prescription",
+    summary="Upload any prescription (PDF, image, or text) to transcribe and prepare for extraction",
+    tags=["Prescription Ingestion"],
+)
+async def upload_prescription_endpoint(
+    file: UploadFile = File(...),
+    patient_id: Optional[str] = Query(None),
+):
+    """
+    Ingests ANY uploaded prescription:
+    - PDF documents (digital or scanned)
+    - Prescription images (PNG, JPG, WEBP, phone camera photos)
+    - Plain text files
+    
+    Returns the extracted text and detected patient ID ready for extraction.
+    """
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+        text, detected_patient_id = extract_text_from_prescription(
+            file_bytes=content,
+            filename=file.filename or "prescription.txt",
+            content_type=file.content_type,
+        )
+
+        return {
+            "filename": file.filename,
+            "raw_notes": text,
+            "patient_id": patient_id or detected_patient_id or "PT-NEW",
+            "status": "ready",
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as exc:
+        logger.error("Failed to process uploaded prescription: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not transcribe prescription file: {exc}"
+        )
+

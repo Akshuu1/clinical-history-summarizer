@@ -12,10 +12,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL: str = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://BADMSOH@localhost:5432/clinical_summarizer",
-)
+DATABASE_URL: str | None = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is not set. "
+        "Add it to your .env file or your deployment environment "
+        "variables before starting the application."
+    )
 # Ensure we use psycopg2 (not psycopg3) — normalize the URL scheme
 if DATABASE_URL.startswith("postgresql://") and "+psycopg2" not in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)

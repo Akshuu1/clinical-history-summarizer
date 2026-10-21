@@ -34,7 +34,7 @@ from rich.table import Table
 load_dotenv()
 
 from app.services.extractor import extract_summary_raw
-from app.services.validator import validate_summary
+from app.services.validator import validate_source_references
 
 console = Console()
 

@@ -27,7 +27,7 @@ def get_or_create_patient(db: Session, patient_id: str) -> Patient:
     if patient is None:
         patient = Patient(
             id=patient_id,
-            created_at=datetime.datetime.utcnow(),
+            created_at=datetime.datetime.now(datetime.timezone.utc),
         )
         db.add(patient)
         db.flush()   # assign PK without committing yet
@@ -48,7 +48,7 @@ def save_source_note(db: Session, patient_id: str, raw_text: str) -> SourceNote:
     note = SourceNote(
         patient_id=patient_id,
         raw_text=raw_text,
-        created_at=datetime.datetime.utcnow(),
+        created_at=datetime.datetime.now(datetime.timezone.utc),
     )
     db.add(note)
     db.flush()   # populate note.id before linking to Summary
@@ -87,7 +87,7 @@ def save_summary(
         verified_count=verified_count,
         unverified_count=unverified_count,
         model_used=model_used,
-        created_at=datetime.datetime.utcnow(),
+        created_at=datetime.datetime.now(datetime.timezone.utc),
     )
     db.add(summary)
     db.flush()
