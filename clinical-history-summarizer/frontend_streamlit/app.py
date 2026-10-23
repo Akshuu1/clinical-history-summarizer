@@ -154,44 +154,13 @@ def collect_cited_lines(summary: dict) -> set[int]:
     return lines
 
 
-# ── Example note (case 6 — the deliberately ambiguous ACS case) ─────────────
-EXAMPLE_NOTE = """\
-# SYNTHETIC DATA — NOT A REAL PATIENT
-
-Pt: E9 / DOB ~1958 / seen 8/10/24
-
-CC - chest pain, onset last night around 10pm. Described as pressure,
-7/10, radiates L arm. Had similar episode 6mo ago that "went away on its own".
-Diaphoresis present. No syncope.
-
-Pmhx: T2DM (on meds), HTN, ex-smoker (quit ~10yrs ago)
-
-Meds (from patient — not verified against GP records):
-metformin - not sure of dose, says "the small ones twice a day"
-ramipril 5mg od
-amlodipine - patient says 5 or 10mg, not certain
-
-Allergies: says he had a bad reaction to "an antibiotic" years ago
-but cannot recall which one or what happened. Nothing in the notes
-brought today.
-
-Ix:
-Trop I: 0.06 (lab ref <0.04) — HIGH — taken at 03:15
-ECG: ST depression V3-V5 (done on arrival)
-
-Plan:
-- ACS protocol started
-- repeat trop at 0h+3 pending
-- cardiology to review
-"""
-
 
 # ── Sidebar ─────────────────────────────────────────────────────────────────────
 # ── Settings sidebar ──────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ Settings")
 
-    patient_id = st.text_input("Patient ID", value="case_demo")
+    patient_id = st.text_input("Patient ID", value="", placeholder="e.g. PT-10492")
 
     mode = st.radio(
         "Output mode",
@@ -243,7 +212,7 @@ st.caption(
 # ── Input area ─────────────────────────────────────────────────────────────────
 notes_input = st.text_area(
     "Paste clinical notes here",
-    value=EXAMPLE_NOTE,
+    value="",
     height=280,
     placeholder="Paste admission notes, lab reports, medication lists…",
 )
@@ -384,9 +353,10 @@ if extract_btn:
             for i, med in enumerate(meds):
                 key = f"current_medications[{i}]"
                 is_unv = key in unverified
-                detail_parts = [med.get("dose"), med.get("timing")]
+                detail_parts = [med.get("dose"), med.get("frequency")]
                 detail = " — " + " ".join(p for p in detail_parts if p) if any(detail_parts) else ""
-                row = f"• <b>{med['name']}</b>{detail}"
+                drug_name = med.get("drug") or med.get("name", "Unknown")
+                row = f"• <b>{drug_name}</b>{detail}"
                 row += badge_unverified() if is_unv else cite_span(med.get("source"))
                 html.append(fact_row(row))
         else:
@@ -395,13 +365,23 @@ if extract_btn:
         # ── Allergies ────────────────────────────────────────────────────────
         html.append(section("⚠ Allergies"))
         allergies = summary.get("allergies", [])
-        allergy_sources = summary.get("allergies_sources", [])
         if allergies:
             for i, al in enumerate(allergies):
+                if isinstance(al, dict):
+                    allergen = al.get("allergen", "Unknown")
+                    reaction = al.get("reaction", "")
+                    al_text = (
+                        f"{allergen} — {reaction}" if reaction 
+                        else allergen
+                    )
+                else:
+                    al_text = str(al)
                 key = f"allergies[{i}]"
                 is_unv = key in unverified
-                src_obj = allergy_sources[i] if i < len(allergy_sources) else None
-                row = f"• <b>{al}</b>"
+                # allergies_sources no longer exists as separate list
+                # source is embedded in AllergyItem
+                src_obj = al.get("source") if isinstance(al, dict) else None
+                row = f"• <b>{al_text}</b>"
                 row += badge_unverified() if is_unv else cite_span(src_obj)
                 html.append(fact_row(row))
         else:
@@ -445,6 +425,94 @@ if extract_btn:
             for f in sorted(unverified):
                 html.append(f'&nbsp;&nbsp;• <code>{f}</code><br>')
             html.append("</div>")
+
+        html.append(section("🚨 Red Flags & Urgent Concerns"))
+        red_flags = summary.get("red_flags", [])
+        red_flags_sources = summary.get("red_flags_sources", [])
+        if red_flags:
+            for i, flag in enumerate(red_flags):
+                # flag must be a string — if it's a dict, extract 
+                # the 'finding' key; if it's neither, skip it
+                if isinstance(flag, dict):
+                    flag_text = flag.get("finding", str(flag))
+                elif isinstance(flag, str):
+                    flag_text = flag
+                else:
+                    continue
+                key = f"red_flags[{i}]"
+                is_unv = key in unverified
+                src_obj = red_flags_sources[i] \
+                    if i < len(red_flags_sources) else None
+                row = (
+                    f'<span style="color:#ef5350">⚠ </span>'
+                    f'<b>{flag_text}</b>'
+                )
+                row += badge_unverified() if is_unv else cite_span(src_obj)
+                html.append(fact_row(row))
+        else:
+            html.append(
+                fact_row(
+                    '<i style="color:#4caf50">✓ No red flags documented</i>'
+                )
+            )
+
+        html.append(section("ℹ Missing Information"))
+        mf = summary.get("missing_fields", [])
+        if mf:
+            for field in mf:
+                readable = field.replace("_", " ").title()
+                html.append(
+                    fact_row(
+                        f'<span style="color:#fb8c00">• {readable}</span>'
+                        f'<span style="color:#888; font-size:0.85em">'
+                        f' — not documented in notes</span>'
+                    )
+                )
+        else:
+            html.append(
+                fact_row(
+                    '<i style="color:#666">All standard fields present</i>'
+                )
+            )
+
+        ai_recs = summary.get("ai_recommendations", [])
+        if ai_recs:
+            html.append(section("💡 AI-Suggested Next Steps"))
+            html.append(
+                '<div style="background:#0d2137; border:1px solid #1e3a5f;'
+                'border-radius:6px; padding:8px 12px; margin-bottom:8px;">'
+                '<span style="color:#fb8c00; font-size:0.78em; font-weight:700">'
+                '⚠ AI-GENERATED — NOT PRESCRIBED BY DOCTOR</span>'
+                '</div>'
+            )
+            for rec in ai_recs:
+                if isinstance(rec, dict):
+                    text = rec.get("recommendation", "")
+                    reason = rec.get("reason", "")
+                    priority = rec.get("priority", "routine").upper()
+                    priority_color = (
+                        "#ef5350" if priority == "URGENT"
+                        else "#fb8c00" if priority == "PROMPT"
+                        else "#9e9e9e"
+                    )
+                    caveat = rec.get("caveat", "")
+                    row = (
+                        f'<b>{text}</b>'
+                        f'<span style="color:{priority_color}; '
+                        f'font-size:0.78em; margin-left:6px">'
+                        f'[{priority}]</span>'
+                    )
+                    if reason:
+                        row += (
+                            f'<br><span style="color:#888; font-size:0.82em">'
+                            f'{reason}</span>'
+                        )
+                    if caveat:
+                        row += (
+                            f'<br><span style="color:#fb8c00; '
+                            f'font-size:0.80em">Note: {caveat}</span>'
+                        )
+                    html.append(fact_row(row))
 
         st.markdown("\n".join(html), unsafe_allow_html=True)
 

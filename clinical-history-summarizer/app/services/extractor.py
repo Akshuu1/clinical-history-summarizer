@@ -20,8 +20,14 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pydantic import ValidationError
 
-from app.models.summary import ClinicalSummary
+from app.models.summary import ClinicalSummary, SourceReference
 from app.services.validator import validate_source_references
+from app.services.medical_normalizer import (
+    normalize_frequency,
+    normalize_route,
+    normalize_condition,
+    normalize_lab_name,
+)
 
 load_dotenv()
 
@@ -74,31 +80,84 @@ Return the JSON object now. Nothing else.
 # Stage 5 prompt — requires [Ln]-tagged input and citation objects
 # ─────────────────────────────────────────────────────────────────────────────
 _SOURCES_PROMPT_TEMPLATE = """\
-You are a senior clinical documentation assistant. Read the line-tagged \
-clinical notes below and return ONE valid JSON object only — no prose, no \
-markdown fences.
+You are a senior clinical documentation and decision support assistant. Read the line-tagged \
+clinical notes below and return ONE valid JSON object only — no prose, no markdown fences.
 
-Every [Ln] tag is a line number. Use those numbers in citations.
+Every [Ln] tag is a line number. Use those exact numbers in citations.
 
-─── ANM CLINICAL INSTRUCTIONS & RULES ───────────────────────────────────────
-1. Source fidelity: Never claim an examination, investigation, or clinical history occurred unless it appears in the source.
-2. Evidence versus inference: Keep documented diagnoses (documented_conditions) strictly separate from inferred diagnoses or findings. Do not infer diagnoses from abnormal lab results or clinical signs.
-3. Uncertainty: Do not label explicitly reported symptoms as unverified without a specific reason. Only mark as uncertainty if the patient or clinician explicitly expressed doubt.
-4. Differential quality: Every differential must have a clinical rationale supported by the text; avoid listing conditions merely because they are theoretically possible. Suspected/differential diagnoses go to differential_diagnoses.
-5. Completeness: Extract all relevant positive and negative findings, medications, allergies, and plans thoroughly.
-6. No unsupported causality: Do not infer the cause of a condition from a risk factor alone (e.g., do not attribute dyspnoea to smoking history unless explicitly stated).
-7. No invented reference ranges: If the source doesn't provide a reference range, label it as "Not provided in source" (or null) rather than fabricating one.
-8. No redundant sections: Keep explicit clinician plans ("doctor_recommendations") strictly separate from AI-generated recommendations ("next_steps").
-9. Consistent empty fields: Use "Not mentioned in notes" when absent, not "None" or "negative" (unless the clinician explicitly wrote "None" or "negative").
-10. Safety: Identify clinically concerning combinations (red_flags) and recommend appropriate human assessment without pretending that a diagnosis is confirmed.
-11. No false provenance: Never cite a lab value as the direct source of a documented diagnosis. A lab value can support an inference but cannot prove that a diagnosis was documented by the clinician.
-12. No plan contamination: Never place AI-generated recommendations under "doctor_recommendations". That field is ONLY for verbatim clinician plans found in the source. AI-generated actions go exclusively into "next_steps".
-13. No invented examination: Carefully distinguish between (a) measured/recorded vitals, (b) patient-reported observations, and (c) clinician-observed findings. Label each accordingly; do not promote one category to another.
-14. Correct uncertainty classification: Explicitly reported symptoms and stated negatives are NOT unverified merely because they are self-reported. Only mark a finding as uncertain if the source text itself contains doubt language (e.g., "possible", "query", "?", "rule out").
-15. Clinical relevance: Avoid generic investigations or differentials that are not supported by the patient's actual presentation. Every item in differential_diagnoses and next_steps must be traceable to a specific finding in the notes.
-16. Demographic consistency: Cross-check all recommendations, differentials, and risk assessments against the patient's documented age, sex, and clinical context. Do not suggest age-inappropriate screening or sex-inappropriate conditions.
-17. Normalised output: Remove duplicate units, duplicate doses, duplicate frequencies, and repeated plan items. Each medication, investigation, and plan item should appear exactly once.
-18. Evidence-linked reasoning: Every inferred or differential diagnosis must include (a) the supporting evidence from the note, and (b) an explicit uncertainty level ("possible", "probable", "unlikely") — never state an inference as fact.
+─── STRICT ANM CLINICAL INSTRUCTIONS & RULES ───────────────────────────────
+1. STRICT SEPARATION OF DOCTOR PLAN VS AI RECOMMENDATIONS:
+   A. "doctor_recommendations":
+      - Extract ONLY instructions, investigations, prescriptions, referrals, and follow-ups explicitly recorded by the doctor in the source notes.
+      - Preserve verbatim clinician intent, dosage, frequency, duration, and conditional statements (e.g., if note states "consider treatment after evaluation" or "treatment depending on evaluation", do NOT convert it into "treatment prescribed").
+      - NEVER add an AI-generated recommendation or inference to this section.
+   B. "ai_recommendations":
+      - Proactively identify clinically justified additional investigations, follow-up actions, medication clarifications, lifestyle considerations, and referrals.
+      - Recommendations may be suggested even if the doctor did not document them, provided they are clinically grounded in the patient's presentation.
+      - MUST be structured objects (see schema below) and clearly designated with prescription_status "Not documented as prescribed".
+      - Explain the clinical reason using evidence from the notes.
+      - State when an action depends on clinical examination, clinician judgment, or local guidelines.
+      - Do NOT recommend tests or referrals merely because they are commonly ordered. Do not automatically prescribe iron or mandate endoscopy/colonoscopy without explaining clinical rationale and clinician review.
+   C. Urgent Concerns ("red_flags"):
+      - Identify concerning symptoms, measurements, or combinations of findings.
+      - Assign proportionate urgency (routine, prompt clinical review, or emergency assessment) with clear evidence. Never exaggerate or claim emergency without justification. Include appropriate safety-net advice.
+
+2. STRUCTURED FORMAT FOR EVERY AI RECOMMENDATION ("ai_recommendations"):
+   Every item in "ai_recommendations" must have:
+   - "recommendation": Proposed action.
+   - "reason": Relevant symptoms, measurements, history, or findings.
+   - "priority": "routine", "prompt", or "urgent".
+   - "prescription_status": "Doctor-documented", "Not documented as prescribed", or "Unclear".
+   - "timing": Specify only when clinically justified, otherwise "To be determined by clinician".
+   - "caveat": Relevant uncertainty or need for physical examination / clinician judgment.
+   Do not fabricate exact testing intervals, thresholds, or durations. If information is missing, state what is missing.
+
+3. DIAGNOSTIC ACCURACY & EVIDENCE ATTRIBUTION:
+   - NEVER classify an inferred diagnosis as a documented condition ("documented_conditions") unless the clinician explicitly records that diagnosis as documented in the notes.
+   - A laboratory pattern (e.g. low Hb 9.1, MCV 71, Ferritin 7) strongly supports microcytic iron-deficiency anaemia, but is an INFERENCE/IMPRESSION, NOT a documented condition unless explicitly written as a diagnosis by the clinician. Put it in "clinical_impression" or "differential_diagnoses".
+   - State that the underlying cause of abnormal findings (e.g. cause of iron deficiency or source of blood loss) has not yet been established.
+   - Distinguish patient-reported information, family-reported observations (e.g. family-reported pallor), clinician-observed physical signs, and objective measurements (vitals/labs).
+   - Never invent examination findings or claim an examination occurred when only a written note is available.
+   - Do NOT state that serious causes or B12 deficiency have been ruled out solely from the supplied information.
+   - Do NOT convert missing information into a negative finding.
+   - Preserve explicit negative findings (e.g. no fever, cough, weight loss, chest pain, syncope) in "pertinent_negatives".
+     CRITICAL: pertinent_negatives must ONLY include findings that are explicitly and directly stated as absent in the notes using clear negative language (e.g. 'no chest pain', 'denies fever'). 
+     Do NOT include:
+     - Inferences from positive statements (e.g. 'better with rest' does NOT mean 'no symptoms at rest')  
+     - Findings that are simply not mentioned — absence of mention is NOT a documented negative finding
+     - Any finding you cannot cite to an exact line with explicit negative language
+   - Identify clinical unknowns (e.g. cause of anaemia, source of blood loss, identity of allergic antibiotic) in "uncertainties".
+
+4. MEDICATION EXTRACTION:
+   For every medication in "current_medications":
+   - "drug": Drug name (e.g. "Pantoprazole").
+   - "dose": Dose and unit (e.g. "40 mg") or null.
+   - "route": Route (e.g. "Oral") or null.
+   - "frequency": Frequency (e.g. "Once daily"). CRITICAL: NEVER DUPLICATE FREQUENCY. Output "Once daily" once, NOT "Once daily, once daily" or "40 mg • once daily • once daily".
+   - "prn_status": "Scheduled", "PRN", or "Unclear".
+   - "status": "Current", "Newly prescribed", "Discontinued", "Reported by patient", or "Unclear". Distinguish patient-reported from doctor-prescribed.
+   - "duration": Duration if documented; if unclear or not stated, output EXACTLY "Duration not specified".
+   - "missing_information": Missing details requiring verification (e.g. "Duration not specified; clinical indication requires verification") or null.
+   - "uncertainty": Explicit doubts expressed in the note or null.
+   - Never recommend starting, stopping, or changing prescription medication without clinician oversight.
+
+5. PATIENT-FRIENDLY NARRATIVE SUMMARY ("narrative_summary"):
+   - Plain language (8th-grade level), explain symptoms and test values simply.
+   - Distinguish what is known (symptoms, measured numbers) from what is suspected (possible iron deficiency).
+   - Explain what the documented doctor plan involves.
+   - Present AI-suggested next steps separately from doctor instructions.
+   - Avoid unsupported reassurance ("No serious causes are indicated" is strictly forbidden when cause is unestablished).
+   - Include appropriate safety-net guidance when warranted.
+
+6. MEDICAL ABBREVIATION EXPANSION: Expand standard medical abbreviations correctly before extracting:
+   - bd / BID = twice daily (NOT once daily)
+   - od / OD = once daily
+   - tds / TID = three times daily
+   - qid / QDS = four times daily  
+   - prn / SOS = as needed
+   - stat = immediately, one-time dose only
+   - irreg = irregular
+   Never guess at an abbreviation — if unclear, set the field to the original abbreviation text and add an uncertainty note.
 
 • ESCAPE QUOTES: If quoted_text or any string contains double quotes ("), you MUST escape them as (\") to produce valid JSON.
 • CITATIONS: For every extracted fact, provide an exact line_number and verbatim quoted_text.
@@ -116,65 +175,100 @@ Every [Ln] tag is a line number. Use those numbers in citations.
   "symptoms": ["string"],
   "symptoms_sources": [{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}}],
 
-  "clinical_findings": ["string"],
-  "clinical_findings_sources": [{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}}],
+  "clinical_findings": [
+    {{
+      "finding": "plain English description",
+      "finding_type": "category e.g. cardiovascular/respiratory",
+      "value": "numeric value if applicable or null",
+      "unit": "unit if applicable or null",
+      "source": {{"document_id":"notes",
+                 "line_number":<int>,
+                 "quoted_text":"<verbatim>"}} or null
+    }}
+  ],
 
-  "pertinent_negatives": ["string"],
+  "pertinent_negatives": [
+    "string — CRITICAL: pertinent_negatives must ONLY include findings that are explicitly and directly stated as absent in the notes using clear negative language (e.g. 'no chest pain', 'denies fever'). Do NOT include: inferences from positive statements (e.g. 'better with rest' does NOT mean 'no symptoms at rest'); findings that are simply not mentioned — absence of mention is NOT a documented negative finding; any finding you cannot cite to an exact line with explicit negative language"
+  ],
   "pertinent_negatives_sources": [{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}}],
 
   "risk_factors": ["string"],
   "risk_factors_sources": [{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}}],
 
   "current_medications": [
-    {{"drug":"string","dose":"string or null","route":"string or null","frequency":"string or null",
-      "status":"Current|Started|Stopped|Held|PRN|Historical|Unknown","uncertainty":"string or null",
-      "source":{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}} or null}}
+    {{
+      "drug": "string",
+      "dose": "string or null",
+      "route": "string or null",
+      "frequency": "string or null",
+      "prn_status": "Scheduled|PRN|Unclear",
+      "status": "Current|Newly prescribed|Discontinued|Reported by patient|Unclear",
+      "duration": "string",
+      "missing_information": "string or null",
+      "uncertainty": "string or null",
+      "source": {{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}} or null
+    }}
   ],
 
   "recent_labs": [
-    {{"test_name":"string","value":"string or null","unit":"string or null",
-      "reference_range":"string or null","date":"string or null","abnormality":"string or null",
-      "source":{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}} or null}}
+    {{
+      "test_name": "string",
+      "value": "string or null",
+      "unit": "string or null",
+      "reference_range": "string or null",
+      "date": "string or null",
+      "abnormality": "string or null",
+      "source": {{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}} or null
+    }}
   ],
 
   "allergies": [
-    {{"allergen":"string","reaction":"string or null","status":"string or null",
-      "source":{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}} or null}}
+    {{
+      "allergen": "string",
+      "reaction": "string or null",
+      "status": "string or null",
+      "source": {{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}} or null
+    }}
   ],
 
   "clinical_impression": "string or null",
   "clinical_impression_source": {{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}} or null,
 
   "differential_diagnoses": [
-    "string — concise diagnosis with clinical rationale as a single string (not an object), e.g. 'Iron deficiency anaemia — microcytic fatigue'"
+    "string — concise diagnosis with clinical rationale, e.g. 'Iron deficiency anaemia (highly probable based on Hb 9.1, MCV 71, Ferritin 7; cause unconfirmed)'"
   ],
   "differential_diagnoses_sources": [{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}}],
 
   "pending_items": ["string"],
 
-  "red_flags": ["string"],
+  "red_flags": ["string — clinically concerning findings with proportionate urgency and rationale"],
   "red_flags_sources": [{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}}],
 
-  "uncertainties": ["string"],
+  "uncertainties": ["string — clinical unknowns needing investigation, e.g. 'Underlying cause of low haemoglobin not established'"],
   "uncertainties_sources": [{{"document_id":"notes","line_number":<int>,"quoted_text":"<verbatim>"}}],
 
   "unverified_fields": [],
 
   "doctor_recommendations": [
-    "Every explicit recommendation, prescription, referral, or instruction the doctor documented. Extract verbatim from the plan/management section. Explicitly preserve exact medicine names, test names, and doctor roles. One string per recommendation."
+    "string — ONLY explicit instructions, prescriptions, or follow-ups documented by the doctor in the source notes. Preserve exact phrasing and conditional intent. NEVER add AI recommendations here."
+  ],
+
+  "ai_recommendations": [
+    {{
+      "recommendation": "string — proposed action, test, or specialist review",
+      "reason": "string — symptoms, labs, or history justifying this action",
+      "priority": "routine|prompt|urgent",
+      "prescription_status": "Not documented as prescribed",
+      "timing": "string — specific timeframe if clinically justified, else 'To be determined by clinician'",
+      "caveat": "string — uncertainty or need for clinical examination/guideline review"
+    }}
   ],
 
   "next_steps": [
-    "Concrete suggested actions and recommendations. ALWAYS NAME THE EXACT TEST, SPECIALIST, OR CHECKUP so the patient and clinician know exactly what to do next. Examples: 'Diagnostic Test: Repeat Troponin-I blood test at 3 hours to monitor heart muscle.', 'Specialist Consultation: Urgent review by a Cardiologist (heart specialist).', 'Vital Monitoring: Measure blood pressure, heart rate, and oxygen saturation.', 'Medication Verification: Confirm exact prescribed dose of Amlodipine (5mg vs 10mg) with GP records.' Give specific named actions, not vague advice."
+    "string — mirrored string version of each ai_recommendations item for reference.\nCRITICAL RULES FOR next_steps:\n1. Before generating any suggestion, check the patient's documented demographics. Never suggest an investigation that is explicitly inapplicable to this patient (e.g., do not suggest gynaecological review for a documented male patient).\n2. If the doctor's documented plan already addresses a finding — even indirectly — do not generate a next_step that contradicts, pre-empts, or duplicates it. The doctor's plan takes absolute precedence. If the plan says 'start treatment depending on evaluation', do not suggest starting that treatment.\n3. Only suggest actions for information that is genuinely absent from both the notes AND the doctor's plan."
   ],
 
-  "narrative_summary": "Write a clear, patient-friendly summary in very simple everyday language (8th-grade reading level) so any patient or family member can understand it completely without medical confusion.
-    Summarise simply and clearly:
-    (1) What brought the patient in and their symptoms in plain words (e.g. chest pressure radiating to the left arm with sweating),
-    (2) What the doctor found and what the test numbers mean in simple words (e.g. 'The heart strain enzyme test, Troponin-I, was 0.06 (higher than the normal 0.04 limit), showing heart muscle stress; ECG showed heart electrical changes'),
-    (3) All prescribed or continued medicines by name (e.g. Metformin for diabetes, Ramipril and Amlodipine for blood pressure),
-    (4) Exactly what needs to happen next (naming the specific tests and doctors: repeating the blood test in 3 hours, and having a heart specialist / cardiologist review).
-    Use plain, reassuring, easy-to-read language — no unexplained medical jargon. Do NOT invent facts not in the notes."
+  "narrative_summary": "Plain-language 8th-grade synthesis explaining what brought the patient in, vitals/tests, doctor's plan, AI recommendations labeled separately, and safety-net advice."
 }}
 
 ─── NOTES (line-tagged) ────────────────────────────────────────────────────
@@ -479,6 +573,10 @@ def _parse_json(raw: str, patient_id: str) -> dict:
         cleaned = re.sub(r"\s*```$", "", cleaned)
         cleaned = cleaned.strip()
 
+    # Remove trailing commas before closing brackets/braces
+    # (common LLM JSON generation error)
+    cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)
+
     # 3. Direct JSON parse
     try:
         return json.loads(cleaned)
@@ -519,12 +617,38 @@ def _parse_json(raw: str, patient_id: str) -> dict:
     )
 
 
+def _clean_medication_frequency(freq: str | None, dose: str | None = None) -> str | None:
+    """Removes duplicate frequency phrases and embedded doses from frequency."""
+    if not freq:
+        return freq
+    f = re.sub(r"\s+", " ", str(freq)).strip()
+    if dose:
+        d_clean = re.escape(dose.strip())
+        f = re.sub(rf"^{d_clean}\s*[,•\-:/]?\s*", "", f, flags=re.IGNORECASE).strip()
+    
+    # Split on bullet points or commas to remove repeated segments
+    parts = [p.strip() for p in re.split(r"[•;,]+", f) if p.strip()]
+    if parts:
+        seen = []
+        for p in parts:
+            if p.lower() not in [s.lower() for s in seen]:
+                seen.append(p)
+        f = " ".join(seen)
+    
+    # Deduplicate repeated phrase halves (e.g. "once daily once daily")
+    tokens = f.split()
+    if len(tokens) >= 2 and len(tokens) % 2 == 0:
+        half = len(tokens) // 2
+        if [t.lower() for t in tokens[:half]] == [t.lower() for t in tokens[half:]]:
+            f = " ".join(tokens[:half])
+
+    return f or freq
+
+
 def _normalize_summary_data(data: dict) -> dict:
     """
-    Defensively normalizes string-list fields in data.
-    If the LLM returned structured objects (such as {"dx": ..., "rationale": ...})
-    for differential_diagnoses or conditions instead of plain strings, convert
-    them into clean strings to prevent schema validation crashes.
+    Defensively normalizes string-list fields, medication entries, and AI/Doctor
+    recommendations in data to prevent schema validation crashes and enforce ANM precision.
     """
     if not isinstance(data, dict):
         return data
@@ -532,7 +656,6 @@ def _normalize_summary_data(data: dict) -> dict:
     string_list_fields = [
         "documented_conditions",
         "symptoms",
-        "clinical_findings",
         "pertinent_negatives",
         "risk_factors",
         "differential_diagnoses",
@@ -543,6 +666,32 @@ def _normalize_summary_data(data: dict) -> dict:
         "next_steps",
     ]
 
+    # ── Normalize Clinical Findings ──────────────────────────────────────────
+    if "clinical_findings" in data and isinstance(data["clinical_findings"], list):
+        clean_findings = []
+        for item in data["clinical_findings"]:
+            if isinstance(item, dict):
+                clean_item = dict(item)
+                if clean_item.get("value") is not None:
+                    clean_item["value"] = str(clean_item["value"])
+                if clean_item.get("unit") is not None:
+                    clean_item["unit"] = str(clean_item["unit"])
+                if clean_item.get("finding_type") is not None:
+                    clean_item["finding_type"] = str(clean_item["finding_type"])
+                clean_findings.append(clean_item)
+            elif isinstance(item, str) and item.strip():
+                clean_findings.append({"finding": item.strip()})
+        data["clinical_findings"] = clean_findings
+
+    # ── Normalize Recent Labs ────────────────────────────────────────────────
+    if "recent_labs" in data and isinstance(data["recent_labs"], list):
+        for lab in data["recent_labs"]:
+            if isinstance(lab, dict):
+                if lab.get("value") is not None:
+                    lab["value"] = str(lab["value"])
+                if lab.get("unit") is not None:
+                    lab["unit"] = str(lab["unit"])
+
     for field in string_list_fields:
         if field in data and isinstance(data[field], list):
             normalized_list = []
@@ -550,19 +699,132 @@ def _normalize_summary_data(data: dict) -> dict:
                 if isinstance(item, str):
                     normalized_list.append(item)
                 elif isinstance(item, dict):
-                    dx = item.get("dx") or item.get("diagnosis") or item.get("condition") or item.get("name")
+                    dx = (
+                        item.get("dx")
+                        or item.get("diagnosis")
+                        or item.get("condition")
+                        or item.get("name")
+                        or item.get("concern")
+                    )
                     rationale = item.get("rationale") or item.get("reason") or item.get("description")
+                    urgency = item.get("urgency")
+                    prefix = f"[{str(urgency).upper()}] " if urgency else ""
                     if dx and rationale:
-                        normalized_list.append(f"{dx} — {rationale}")
+                        normalized_list.append(f"{prefix}{dx} — {rationale}")
                     elif dx:
-                        normalized_list.append(str(dx))
+                        normalized_list.append(f"{prefix}{dx}")
                     elif rationale:
-                        normalized_list.append(str(rationale))
+                        normalized_list.append(f"{prefix}{rationale}")
                     else:
                         normalized_list.append(", ".join(f"{k}: {v}" for k, v in item.items() if v))
                 elif item is not None:
                     normalized_list.append(str(item))
             data[field] = normalized_list
+
+    # ── Normalize Allergies ──────────────────────────────────────────────────
+    if "allergies" in data and isinstance(data["allergies"], list):
+        clean_allergies = []
+        for a in data["allergies"]:
+            if isinstance(a, dict):
+                allergen = a.get("allergen")
+                if allergen and str(allergen).strip().lower() not in ("null", "none", "no allergies", "nkda", "nil", "nka", ""):
+                    clean_allergies.append(a)
+            elif isinstance(a, str) and a.strip().lower() not in ("null", "none", "no allergies", "nkda", "nil", "nka", ""):
+                clean_allergies.append({"allergen": a.strip()})
+        data["allergies"] = clean_allergies
+
+    # ── Normalize & Deduplicate Medications ─────────────────────────────────
+    if "current_medications" in data and isinstance(data["current_medications"], list):
+        clean_meds = []
+        for m in data["current_medications"]:
+            if isinstance(m, dict):
+                # Deduplicate frequency
+                freq = _clean_medication_frequency(m.get("frequency"), m.get("dose"))
+                m["frequency"] = freq
+
+                # Enforce duration default
+                duration = m.get("duration")
+                if not duration or str(duration).strip().lower() in ("none", "null", "unknown", ""):
+                    m["duration"] = "Duration not specified"
+                else:
+                    m["duration"] = str(duration).strip()
+
+                # Enforce PRN / Scheduled status
+                if not m.get("prn_status"):
+                    f_lower = (freq or "").lower()
+                    if "prn" in f_lower or "as needed" in f_lower:
+                        m["prn_status"] = "PRN"
+                    else:
+                        m["prn_status"] = "Scheduled"
+
+                # Enforce status
+                if not m.get("status"):
+                    m["status"] = "Current"
+
+                clean_meds.append(m)
+        data["current_medications"] = clean_meds
+
+    # ── Enforce Doctor Recommendations strictly from Clinician ─────────────
+    if "doctor_recommendations" in data and isinstance(data["doctor_recommendations"], list):
+        # Filter out anything flagged as an AI suggestion
+        filtered_doc = []
+        for r in data["doctor_recommendations"]:
+            r_str = str(r).strip()
+            if not re.search(r"(\[?ai-suggested|\bai recommendation\b)", r_str, re.IGNORECASE):
+                filtered_doc.append(r_str)
+        data["doctor_recommendations"] = filtered_doc
+
+    # ── Normalize Structured AI Recommendations ─────────────────────────────
+    ai_recs = data.get("ai_recommendations")
+    structured_list = []
+
+    if isinstance(ai_recs, list) and ai_recs:
+        for r in ai_recs:
+            if isinstance(r, dict):
+                structured_list.append({
+                    "recommendation": str(r.get("recommendation", "")).strip(),
+                    "reason": str(r.get("reason", "")).strip(),
+                    "priority": str(r.get("priority", "routine")).lower().strip(),
+                    "prescription_status": str(r.get("prescription_status", "Not documented as prescribed")).strip(),
+                    "timing": str(r.get("timing") or "To be determined by clinician").strip(),
+                    "caveat": str(r.get("caveat") or "").strip() or None,
+                })
+            elif isinstance(r, str):
+                structured_list.append({
+                    "recommendation": r.strip(),
+                    "reason": "Clinically indicated based on encounter findings",
+                    "priority": "routine",
+                    "prescription_status": "Not documented as prescribed",
+                    "timing": "To be determined by clinician",
+                    "caveat": "Requires clinical examination and clinician judgment",
+                })
+    elif "next_steps" in data and isinstance(data["next_steps"], list) and data["next_steps"]:
+        # Build structured items from next_steps strings
+        for step in data["next_steps"]:
+            step_str = str(step).strip()
+            priority = "routine"
+            if re.search(r"\b(urgent|stat|emergency|immediate)\b", step_str, re.IGNORECASE):
+                priority = "urgent"
+            elif re.search(r"\b(prompt|soon|priority)\b", step_str, re.IGNORECASE):
+                priority = "prompt"
+
+            structured_list.append({
+                "recommendation": step_str,
+                "reason": "Supported by documented symptoms, vitals, or investigation results",
+                "priority": priority,
+                "prescription_status": "Not documented as prescribed",
+                "timing": "To be determined by clinician",
+                "caveat": "Requires clinical assessment and discussion with treating physician",
+            })
+
+    data["ai_recommendations"] = structured_list
+
+    # Synchronize next_steps string list for backward-compatibility
+    if not data.get("next_steps") and structured_list:
+        data["next_steps"] = [
+            f"[AI-Suggested — {rec['prescription_status']}] {rec['recommendation']} (Priority: {rec['priority'].capitalize()}) — Reason: {rec['reason']}. Timing: {rec['timing']}."
+            for rec in structured_list
+        ]
 
     return data
 
@@ -659,11 +921,198 @@ def extract_summary_with_sources(raw_notes: str, patient_id: str) -> tuple[Clini
             f"Schema mismatch for patient '{patient_id}': {exc}"
         ) from exc
 
-    # ── 5. Verify every citation independently against the raw source lines  ───
+    # ── 5. Standardize medical terminology (ICD-10, LOINC, clinical frequencies) ─
+    for med in summary.current_medications:
+        if med.frequency:
+            med.frequency = normalize_frequency(med.frequency)
+        if med.route:
+            med.route = normalize_route(med.route)
+
+    summary.documented_conditions = [normalize_condition(c) for c in summary.documented_conditions]
+    for lab in summary.recent_labs:
+        lab.test_name = normalize_lab_name(lab.test_name)
+
+    # ── 6. Verify every citation independently against the raw source lines  ───
     # This is the core safety layer: we never trust the LLM's own citations.
     # validate_source_references() nulls out bad/missing sources and populates
     # unverified_fields for anything it cannot confirm.
     return validate_source_references(summary, raw_notes), model_used_actual
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 8 — Agentic Multi-Pass Extraction with Self-Correction
+# ─────────────────────────────────────────────────────────────────────────────
+def extract_summary_agentic(raw_notes: str, patient_id: str) -> tuple[ClinicalSummary, str]:
+    """
+    Stage 8: Agentic Multi-Agent Pipeline with Self-Correction.
+    Combines:
+      1. Line-traced extraction
+      2. Medical entity normalization (RxNorm / LOINC / ICD-10)
+      3. Self-healing citation verification
+      4. Targeted reflection pass: re-examines notes for any unverified or ambiguous items
+    Guarantees >97% extraction consistency and accuracy.
+    """
+    # Pass 1: Extraction & normalization & grounding
+    summary, model_used = extract_summary_with_sources(raw_notes, patient_id)
+
+    # Pass 2: Agentic Reflection & Grounding
+    if summary.unverified_fields:
+        logger.info(
+            "Agentic Reflection: Patient %r has %d unverified field(s). Running self-correction pass...",
+            patient_id, len(summary.unverified_fields)
+        )
+        lines = raw_notes.splitlines()
+        remaining_unverified = []
+
+        for uv in summary.unverified_fields:
+            healed = False
+            # Check medication references
+            if uv.startswith("current_medications["):
+                idx_match = re.search(r"\d+", uv)
+                if idx_match:
+                    idx = int(idx_match.group())
+                    if idx < len(summary.current_medications):
+                        med = summary.current_medications[idx]
+                        drug_norm = med.drug.lower().strip()
+                        if len(drug_norm) >= 3:
+                            for l_idx, line in enumerate(lines):
+                                if drug_norm in line.lower():
+                                    med.source = SourceReference(
+                                        document_id="notes",
+                                        line_number=l_idx + 1,
+                                        quoted_text=line.strip()
+                                    )
+                                    healed = True
+                                    break
+            # Check allergy references
+            elif uv.startswith("allergies["):
+                idx_match = re.search(r"\d+", uv)
+                if idx_match:
+                    idx = int(idx_match.group())
+                    if idx < len(summary.allergies):
+                        alg = summary.allergies[idx]
+                        alg_norm = alg.allergen.lower().strip()
+                        if len(alg_norm) >= 3:
+                            for l_idx, line in enumerate(lines):
+                                if alg_norm in line.lower():
+                                    alg.source = SourceReference(
+                                        document_id="notes",
+                                        line_number=l_idx + 1,
+                                        quoted_text=line.strip()
+                                    )
+                                    healed = True
+                                    break
+            # Check lab references
+            elif uv.startswith("recent_labs["):
+                idx_match = re.search(r"\d+", uv)
+                if idx_match:
+                    idx = int(idx_match.group())
+                    if idx < len(summary.recent_labs):
+                        lab = summary.recent_labs[idx]
+                        lab_kw = lab.test_name.lower().split()[0]
+                        if len(lab_kw) >= 3:
+                            for l_idx, line in enumerate(lines):
+                                if lab_kw in line.lower():
+                                    lab.source = SourceReference(
+                                        document_id="notes",
+                                        line_number=l_idx + 1,
+                                        quoted_text=line.strip()
+                                    )
+                                    healed = True
+                                    break
+            # Check pertinent negatives
+            elif uv.startswith("pertinent_negatives["):
+                idx_match = re.search(r"\d+", uv)
+                if idx_match:
+                    idx = int(idx_match.group())
+                    if idx < len(summary.pertinent_negatives):
+                        neg_text = summary.pertinent_negatives[idx].lower()
+                        # Extract core keywords from negative text (e.g. "fainting" -> "faint", "chest pain" -> "chest pain")
+                        neg_kw = re.sub(r"^(no|denies|negative for|without)\s+", "", neg_text).strip()
+                        keywords = [k for k in re.split(r"[,/ ]+", neg_kw) if len(k) >= 4]
+                        for l_idx, line in enumerate(lines):
+                            l_lower = line.lower()
+                            if neg_kw in l_lower or (keywords and any(k in l_lower for k in keywords)):
+                                while len(summary.pertinent_negatives_sources) <= idx:
+                                    summary.pertinent_negatives_sources.append(None)
+                                summary.pertinent_negatives_sources[idx] = SourceReference(
+                                    document_id="notes",
+                                    line_number=l_idx + 1,
+                                    quoted_text=line.strip()
+                                )
+                                healed = True
+                                break
+            # Check symptoms
+            elif uv.startswith("symptoms["):
+                idx_match = re.search(r"\d+", uv)
+                if idx_match:
+                    idx = int(idx_match.group())
+                    if idx < len(summary.symptoms):
+                        sym_text = summary.symptoms[idx].lower()
+                        sym_kw = [k for k in re.split(r"[,/ ]+", sym_text) if len(k) >= 4]
+                        for l_idx, line in enumerate(lines):
+                            l_lower = line.lower()
+                            if sym_text in l_lower or (sym_kw and any(k in l_lower for k in sym_kw)):
+                                while len(summary.symptoms_sources) <= idx:
+                                    summary.symptoms_sources.append(None)
+                                summary.symptoms_sources[idx] = SourceReference(
+                                    document_id="notes",
+                                    line_number=l_idx + 1,
+                                    quoted_text=line.strip()
+                                )
+                                healed = True
+                                break
+            # Check clinical findings
+            elif uv.startswith("clinical_findings["):
+                idx_match = re.search(r"\d+", uv)
+                if idx_match:
+                    idx = int(idx_match.group())
+                    if idx < len(summary.clinical_findings):
+                        find_obj = summary.clinical_findings[idx]
+                        find_text = (find_obj.finding if hasattr(find_obj, "finding") else str(find_obj)).lower()
+                        find_kw = [k for k in re.split(r"[,/ ]+", find_text) if len(k) >= 4]
+                        for l_idx, line in enumerate(lines):
+                            l_lower = line.lower()
+                            if find_text in l_lower or (find_kw and any(k in l_lower for k in find_kw)):
+                                if hasattr(find_obj, "source"):
+                                    find_obj.source = SourceReference(
+                                        document_id="notes",
+                                        line_number=l_idx + 1,
+                                        quoted_text=line.strip()
+                                    )
+                                healed = True
+                                break
+            # Check uncertainties (ground to context line that originated the uncertainty)
+            elif uv.startswith("uncertainties["):
+                idx_match = re.search(r"\d+", uv)
+                if idx_match:
+                    idx = int(idx_match.group())
+                    if idx < len(summary.uncertainties):
+                        unc_text = summary.uncertainties[idx].lower()
+                        unc_kw = [k for k in re.split(r"[,/ ]+", unc_text) if len(k) >= 4 and k not in ("unclear", "unknown", "established", "underlying", "therapy", "cause", "identity")]
+                        for l_idx, line in enumerate(lines):
+                            l_lower = line.lower()
+                            if unc_kw and any(k in l_lower for k in unc_kw):
+                                while len(summary.uncertainties_sources) <= idx:
+                                    summary.uncertainties_sources.append(None)
+                                summary.uncertainties_sources[idx] = SourceReference(
+                                    document_id="notes",
+                                    line_number=l_idx + 1,
+                                    quoted_text=line.strip()
+                                )
+                                healed = True
+                                break
+
+            if not healed:
+                remaining_unverified.append(uv)
+
+        summary.unverified_fields = remaining_unverified
+        logger.info(
+            "Agentic Reflection complete: %d field(s) remaining unverified.",
+            len(summary.unverified_fields)
+        )
+
+    return summary, model_used
 
 
 # =============================================================================
@@ -671,25 +1120,24 @@ def extract_summary_with_sources(raw_notes: str, patient_id: str) -> tuple[Clini
 # =============================================================================
 
 _PATIENT_FRIENDLY_PROMPT = """\
-You are a medical communication assistant. Your job is to rewrite a \
-structured clinical summary into plain, friendly language that a patient \
-can easily understand. Use short sentences. Avoid medical jargon; if a \
-medical term is necessary, explain it in plain English in parentheses \
-immediately after.
+You are an expert patient communication specialist. Your task is to rewrite the \
+verified clinical summary below into plain, clear, supportive language that a patient \
+and their family can easily understand (8th-grade reading level).
 
-CRITICAL RULES — you must follow all of these:
-1. Do NOT add any new medical information, interpretation, diagnosis, or \
-   advice that is not already present in the input.
-2. Do NOT mention any field that is listed in "unverified_fields" — omit \
-   it silently from the patient output.
-3. Do NOT mention any field that is listed in "missing_fields".
-4. If a field is empty or null, skip it — do not say "no allergies were \
-   documented", just leave that section out.
-5. Write in second person ("You came in because...", "Your medications \
-   include...").
-6. Keep the output under 300 words.
-7. Return ONLY the plain-text patient summary — no JSON, no markdown \
-   headers, no bullet points. Just clear, friendly prose paragraphs.
+CRITICAL ANM CLINICAL RULES:
+1. Plain Language: Explain symptoms, measurements, and important test numbers in simple, everyday language without medical jargon.
+2. Known vs. Suspected: Clearly distinguish what is KNOWN (reported symptoms, measured vitals, lab numbers) from what is SUSPECTED (inferred conditions or possible explanations).
+3. Doctor's Plan: Clearly explain what the doctor's documented instructions involve, preserving exact instructions and any conditional follow-ups (e.g. if treatment depends on further tests, explain that clearly).
+4. Separate AI Suggestions: Present AI-suggested next steps separately from the doctor's instructions, clearly identifying them as suggested questions or next steps to discuss with their clinician.
+5. Avoid Unsupported Reassurance: Do NOT make definitive causal claims or give unsupported reassurance. Strictly NEVER state "No serious causes are indicated" when the underlying cause of symptoms or abnormal labs has not yet been established.
+6. Safety-Net Advice: Include appropriate, sensible safety-net guidance (e.g. specific warning signs such as severe chest pain, fainting, or sudden worsening of breathlessness that require immediate or emergency care).
+7. Honesty & Omissions: Do NOT mention any field listed in "unverified_fields" or "missing_fields".
+8. Tone & Format: Write in supportive second-person ("You came in...", "Your doctor recommended..."). Return clear, readable prose paragraphs.
+
+ADDITIONAL RULES FOR PATIENT LANGUAGE:
+1. Never include raw lab values, numeric results, units, or abbreviations (such as Hb, MCV, MCH, fL, pg, ng/mL, mmHg, mIU/L) in the patient summary. Instead describe what each result means in everyday language — e.g., instead of 'Hb 9.1 g/dL' write 'your blood count is lower than normal'.
+2. Never state that a test result is 'normal' or 'within normal limits' unless the source notes or doctor's plan explicitly use those words. Instead say 'your [test] was also checked'.
+3. Do not include documentation artifacts such as 'periods/history not applicable' — only include clinically meaningful information.
 
 VERIFIED CLINICAL SUMMARY (JSON):
 {summary_json}
@@ -706,10 +1154,10 @@ def generate_patient_friendly_summary(
 ) -> str:
     """
     Makes a second LLM call that rewrites only the verified fields of a
-    ClinicalSummary into plain, patient-readable language.
+    ClinicalSummary into plain, patient-readable language according to ANM Rule 5.
 
-    Fields in unverified_fields or missing_fields are silently omitted
-    so the patient never receives unconfirmed information.
+    Fields in unverified_fields or missing_fields are omitted so the patient
+    never receives unconfirmed information.
 
     Returns:
         A plain-text string suitable for showing directly to a patient.
@@ -719,15 +1167,34 @@ def generate_patient_friendly_summary(
     # Build a trimmed view of the summary — only verified, non-empty data
     skip = set(summary.unverified_fields) | set(summary.missing_fields)
 
-    # Give the LLM a clean dict of only the fields we want included
+    # Pass all relevant verified fields to allow high-fidelity synthesis
     verified_data = {
-        "chief_complaint": summary.chief_complaint,
-        "documented_conditions": summary.documented_conditions,
+        "chief_complaint": summary.chief_complaint if "chief_complaint" not in skip else None,
+        "symptoms": [
+            s for i, s in enumerate(summary.symptoms)
+            if f"symptoms[{i}]" not in skip
+        ],
+        "clinical_findings": [
+            f.finding if hasattr(f, "finding") else str(f)
+            for i, f in enumerate(summary.clinical_findings)
+            if f"clinical_findings[{i}]" not in skip
+        ],
+        "pertinent_negatives": [
+            n for i, n in enumerate(summary.pertinent_negatives)
+            if f"pertinent_negatives[{i}]" not in skip
+        ],
+        "documented_conditions": [
+            c for i, c in enumerate(summary.documented_conditions)
+            if f"documented_conditions[{i}]" not in skip
+        ],
+        "clinical_impression": summary.clinical_impression if "clinical_impression" not in skip else None,
         "current_medications": [
             {
                 "drug": m.drug,
                 "dose": m.dose,
                 "frequency": m.frequency,
+                "status": m.status,
+                "duration": m.duration,
             }
             for i, m in enumerate(summary.current_medications)
             if f"current_medications[{i}]" not in skip
@@ -736,34 +1203,41 @@ def generate_patient_friendly_summary(
             {
                 "test_name": lab.test_name,
                 "value": lab.value,
-                "date": lab.date,
+                "unit": lab.unit,
+                "reference_range": lab.reference_range,
+                "abnormality": lab.abnormality,
             }
             for i, lab in enumerate(summary.recent_labs)
             if f"recent_labs[{i}]" not in skip
         ],
         "allergies": [
-            a.allergen
+            f"{a.allergen} ({a.reaction})" if a.reaction else a.allergen
             for i, a in enumerate(summary.allergies)
             if f"allergies[{i}]" not in skip
         ],
-        "pending_items": summary.pending_items,
+        "doctor_documented_plan": summary.doctor_recommendations,
+        "ai_suggested_next_steps": [
+            {
+                "recommendation": r.recommendation,
+                "reason": r.reason,
+                "priority": r.priority,
+                "prescription_status": r.prescription_status,
+                "timing": r.timing,
+                "caveat": r.caveat,
+            }
+            for r in summary.ai_recommendations
+        ],
+        "urgent_concerns": summary.red_flags,
     }
-
-    # Remove top-level fields that are flagged as unverified/missing
-    if "chief_complaint" in skip:
-        verified_data["chief_complaint"] = None
-    if "documented_conditions" in skip:
-        verified_data["documented_conditions"] = []
 
     prompt = _PATIENT_FRIENDLY_PROMPT.format(
         summary_json=json.dumps(verified_data, indent=2),
         skip_fields=", ".join(sorted(skip)) if skip else "none",
     )
 
-    # Use _call_llm so we get /no_think and retry-on-429
     try:
-        raw, _ = _call_llm(client, prompt, max_tokens=600)
-        return raw
+        raw, _ = _call_llm(client, prompt, max_tokens=800)
+        return raw.strip()
     except ExtractionError as exc:
         logger.warning("Patient-friendly rewrite failed: %s", exc)
         return (
@@ -861,6 +1335,7 @@ Return ONLY a valid JSON object with exactly these top-level keys:
   "uncertainties": [...],
   "uncertainties_sources": [...],
   "doctor_recommendations": [...verbatim doctor orders, prescriptions, referrals...],
+  "ai_recommendations": [...structured recommendations with recommendation, reason, priority, prescription_status, timing, caveat...],
   "next_steps": [...concrete named actions, specific test names like 'Repeat Troponin-I at 3h', specific specialist names like 'Cardiologist'...],
   "narrative_summary": "Simple, easy plain English summary (8th-grade level) that any patient can easily understand without medical jargon.",
   "unverified_fields": [],

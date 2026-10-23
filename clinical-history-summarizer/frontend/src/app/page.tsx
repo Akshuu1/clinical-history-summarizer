@@ -36,36 +36,12 @@ import {
   HelpCircle,
   CalendarCheck,
   AlertOctagon,
-  Sparkle
+  Sparkle,
+  Compass,
+  ClipboardList
 } from "lucide-react";
 
 const API_URL = "http://localhost:8000";
-
-const SAMPLE_DEMO_NOTE = `Pt: E9 / DOB ~1958 / seen 8/10/24
-
-CC - chest pain, onset last night around 10pm. Described as pressure,
-7/10, radiates L arm. Had similar episode 6mo ago that "went away on its own".
-Diaphoresis present. No syncope.
-
-Pmhx: T2DM (on meds), HTN, ex-smoker (quit ~10yrs ago)
-
-Meds (from patient — not verified against GP records):
-metformin - not sure of dose, says "the small ones twice a day"
-ramipril 5mg od
-amlodipine - patient says 5 or 10mg, not certain
-
-Allergies: says he had a bad reaction to "an antibiotic" years ago
-but cannot recall which one or what happened. Nothing in the notes
-brought today.
-
-Ix:
-Trop I: 0.06 (lab ref <0.04) — HIGH — taken at 03:15
-ECG: ST depression V3-V5 (done on arrival)
-
-Plan:
-- ACS protocol started
-- repeat trop at 0h+3 pending
-- cardiology to review`;
 
 export default function Home() {
   // Input State
@@ -88,6 +64,7 @@ export default function Home() {
   const [activeQuotedText, setActiveQuotedText] = useState<string | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [agenticMode, setAgenticMode] = useState(true);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -101,31 +78,6 @@ export default function Home() {
       ...prev,
       [id]: !prev[id]
     }));
-  };
-
-  const setAllCollapsed = (collapsed: boolean) => {
-    const sectionIds = [
-      "documented_conditions",
-      "chief_complaint",
-      "symptoms",
-      "risk_factors",
-      "clinical_findings",
-      "recent_labs",
-      "current_medications",
-      "allergies",
-      "pertinent_negatives",
-      "clinical_impression",
-      "differential_diagnoses",
-      "doctor_recommendations",
-      "pending_items",
-      "uncertainties",
-      "next_steps"
-    ];
-    const updated: Record<string, boolean> = {};
-    sectionIds.forEach(id => {
-      updated[id] = collapsed;
-    });
-    setCollapsedSections(updated);
   };
 
   const handleFileUpload = async (file: File) => {
@@ -158,7 +110,7 @@ export default function Home() {
         setPatientId(data.patient_id);
       }
       setLeftTab("editor");
-      showToast(`🔥 Transcribed ${file.name}`);
+      showToast(`Transcribed ${file.name}`);
     } catch (err: any) {
       setError(err.message || "Failed to transcribe uploaded prescription.");
       setUploadFileName(null);
@@ -177,7 +129,7 @@ export default function Home() {
 
   const handleExtract = async () => {
     if (!notes.trim()) {
-      setError("Please drop a prescription or paste clinical notes first!");
+      setError("Please drop a prescription or paste clinical notes first.");
       return;
     }
     
@@ -186,7 +138,8 @@ export default function Home() {
     setResult(null);
 
     try {
-      const res = await fetch(`${API_URL}/extract`, {
+      const endpoint = agenticMode ? `${API_URL}/extract-agentic` : `${API_URL}/extract`;
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -203,7 +156,7 @@ export default function Home() {
       const data = await res.json();
       setResult(data);
       setLeftTab("inspector");
-      showToast("⚡ Summary ready in both Patient & Doctor views!");
+      showToast("Clinical summary generated successfully.");
     } catch (err: any) {
       setError(err.message || "An error occurred during extraction.");
     } finally {
@@ -223,44 +176,46 @@ export default function Home() {
       }
     }, 100);
 
-    showToast(`🎯 Locked on source Line ${lineNum}`);
+    showToast(`Focused on Line ${lineNum}`);
   };
 
   const handleCopySummary = () => {
     if (!result) return;
     const s = result.summary;
-    let md = `# Patient Health & Medication Summary\n`;
+    let md = `# Patient Clinical Summary\n`;
     md += `Patient Identifier: ${result.summary.patient_id || patientId || "N/A"}\n\n`;
 
     if (s.narrative_summary) {
-      md += `## What Happened (Simple Language Summary)\n${s.narrative_summary}\n\n`;
+      md += `## Plain-Language Summary\n${s.narrative_summary}\n\n`;
     }
     if (s.current_medications?.length > 0) {
-      md += `## Prescribed Medications\n`;
+      md += `## Medications\n`;
       s.current_medications.forEach((m: any) => {
-        const det = [m.dose, m.route, m.frequency].filter(Boolean).join(" • ");
-        md += `- **${m.drug}**: ${det || "Dose as directed"}${m.status ? ` [${m.status}]` : ""}\n`;
+        const det = [m.dose, m.route, m.frequency].filter(Boolean).join(", ");
+        md += `- **${m.drug}**: ${det || "Dose as directed"}${m.status ? ` [${m.status}]` : ""}${m.duration ? ` (Duration: ${m.duration})` : ""}\n`;
       });
       md += `\n`;
     }
-    if (s.next_steps?.length > 0) {
-      md += `## Recommended Next Tests & Actions\n`;
-      s.next_steps.forEach((st: string) => { md += `- ${st}\n`; });
-      md += `\n`;
-    }
     if (s.doctor_recommendations?.length > 0) {
-      md += `## Doctor's Explicit Instructions\n`;
+      md += `## Doctor-Documented Plan\n`;
       s.doctor_recommendations.forEach((r: string) => { md += `→ ${r}\n`; });
       md += `\n`;
     }
+    if (s.ai_recommendations?.length > 0) {
+      md += `## AI-Suggested Next Steps (Not Documented as Prescribed)\n`;
+      s.ai_recommendations.forEach((r: any) => {
+        md += `- [${(r.priority || "routine").toUpperCase()}] ${r.recommendation} — Reason: ${r.reason}. Timing: ${r.timing}. Caveat: ${r.caveat || "Clinician judgment required"}\n`;
+      });
+      md += `\n`;
+    }
     if (s.red_flags?.length > 0) {
-      md += `## ⚠️ Warning Signs to Watch For\n`;
+      md += `## Urgent Concerns & Safety-Net\n`;
       s.red_flags.forEach((f: string) => { md += `- ${f}\n`; });
       md += `\n`;
     }
 
     navigator.clipboard.writeText(md).then(() => {
-      showToast("📋 Summary & medicines copied to clipboard!");
+      showToast("Summary copied to clipboard.");
     });
   };
 
@@ -273,7 +228,26 @@ export default function Home() {
     a.download = `clinical_summary_${result.summary.patient_id || "report"}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast("💾 JSON report downloaded!");
+    showToast("JSON report downloaded.");
+  };
+
+  const handleExportFHIR = async () => {
+    if (!result?.summary?.patient_id) return;
+    try {
+      const res = await fetch(`${API_URL}/summary/${result.summary.patient_id}/fhir`);
+      if (!res.ok) throw new Error("Failed to export FHIR");
+      const fhirData = await res.json();
+      const blob = new Blob([JSON.stringify(fhirData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fhir_r4_bundle_${result.summary.patient_id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("FHIR R4 Bundle downloaded.");
+    } catch {
+      showToast("Could not export FHIR bundle.");
+    }
   };
 
   const handlePrint = () => {
@@ -297,6 +271,9 @@ export default function Home() {
     if (s.clinical_impression_source) addCitation(s.clinical_impression_source, "Impression");
     s.documented_conditions_sources?.forEach((src: any) => addCitation(src, "Condition"));
     s.symptoms_sources?.forEach((src: any) => addCitation(src, "Symptom"));
+    s.clinical_findings?.forEach((f: any) => {
+      if (f?.source) addCitation(f.source, "Finding");
+    });
     s.clinical_findings_sources?.forEach((src: any) => addCitation(src, "Finding"));
     s.pertinent_negatives_sources?.forEach((src: any) => addCitation(src, "Negative"));
     s.risk_factors_sources?.forEach((src: any) => addCitation(src, "Risk"));
@@ -330,16 +307,15 @@ export default function Home() {
       <button 
         type="button"
         onClick={() => jumpToCitation(source.line_number, source.quoted_text)}
-        className={`ml-2 inline-flex items-center gap-1.5 text-[11px] font-mono font-extrabold px-2 py-0.5 rounded-lg border-2 transition-all cursor-pointer ${
+        className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
           isTarget 
-            ? "bg-[#ccff00] text-black border-black shadow-[3px_3px_0px_#ff5500] scale-105" 
-            : "bg-zinc-800/90 hover:bg-[#ccff00] text-zinc-300 hover:text-black border-zinc-700 hover:border-black shadow-[2px_2px_0px_#000] hover:shadow-[3px_3px_0px_#ccff00]"
+            ? "bg-indigo-600 text-white border-indigo-400 shadow-sm" 
+            : "bg-zinc-800/80 text-zinc-300 hover:text-white border-zinc-700/80 hover:border-zinc-500"
         }`}
-        title={`Click to jump to line ${source.line_number}: "${source.quoted_text}"`}
+        title={`Line ${source.line_number}: "${source.quoted_text}"`}
       >
-        <Zap size={11} className={isTarget ? "fill-black text-black" : "text-[#ccff00]"} />
-        <span>L{source.line_number}</span>
-        <span className="opacity-70 font-normal max-w-[110px] truncate hidden sm:inline">&ldquo;{snippet}&rdquo;</span>
+        <span className="font-semibold text-indigo-400">L{source.line_number}</span>
+        <span className="opacity-70 font-normal max-w-[120px] truncate hidden sm:inline">&ldquo;{snippet}&rdquo;</span>
       </button>
     );
   };
@@ -350,27 +326,171 @@ export default function Home() {
     if (!isUnv) return null;
     return (
       <span 
-        className="ml-2 inline-flex items-center gap-1 bg-[#ff2a5f] text-black border-2 border-black font-extrabold text-[10px] px-2 py-0.5 rounded-full shadow-[2px_2px_0px_#000] uppercase tracking-wider"
-        title="Unverified: Citation couldn't be matched verbatim"
+        className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-rose-500/40 bg-rose-500/10 text-rose-400"
+        title="Unverified against source line"
       >
-        <AlertTriangle size={11} className="stroke-[3]" />
-        VERIFY
+        <AlertTriangle size={11} className="stroke-[2.5]" />
+        Verify
       </span>
     );
   };
 
-  const matchesSearch = (text?: string | null) => {
-    if (!searchTerm.trim()) return true;
-    if (!text) return false;
-    return text.toLowerCase().includes(searchTerm.toLowerCase());
+  const renderDrugIntelligenceCard = () => {
+    if (!result?.drug_intelligence) return null;
+    const di = result.drug_intelligence;
+    const hasAlerts = (di.high_severity_count || 0) > 0 || (di.moderate_severity_count || 0) > 0;
+    if (!hasAlerts && !di.dose_alerts?.length && !di.contraindications?.length && !di.allergy_conflicts?.length) return null;
+
+    return (
+      <div className="glass-card p-6 md:p-8 space-y-5 border-rose-500/25 bg-rose-950/10">
+        <div className="flex items-center justify-between gap-4 border-b border-rose-500/15 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30">
+              <ShieldAlert size={20} className="stroke-[2]" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-rose-300">
+                Drug Safety Intelligence
+              </h3>
+              <p className="text-xs text-zinc-400">Rule-based pharmacotherapy safety radar</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {di.high_severity_count > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium border border-rose-500/50 bg-rose-500/20 text-rose-300">
+                {di.high_severity_count} High Risk
+              </span>
+            )}
+            {di.moderate_severity_count > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium border border-amber-500/50 bg-amber-500/20 text-amber-300">
+                {di.moderate_severity_count} Moderate
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-1">
+          {di.drug_interactions?.map((ddi: any, i: number) => (
+            <div key={i} className={`p-4 rounded-xl border ${ddi.severity === "HIGH" ? "border-rose-500/40 bg-rose-500/5" : "border-amber-500/40 bg-amber-500/5"}`}>
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${ddi.severity === "HIGH" ? "bg-rose-500 text-black" : "bg-amber-500 text-black"}`}>
+                  {ddi.severity} Interaction
+                </span>
+                <span className="text-sm font-semibold text-white">{ddi.drug_a}</span>
+                <span className="text-zinc-500">+</span>
+                <span className="text-sm font-semibold text-white">{ddi.drug_b}</span>
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed">{ddi.explanation}</p>
+              {ddi.action && <p className="text-xs text-indigo-400 font-medium mt-1.5">Action: {ddi.action}</p>}
+            </div>
+          ))}
+
+          {di.allergy_conflicts?.map((ac: any, i: number) => (
+            <div key={i} className="p-4 rounded-xl border border-rose-500/40 bg-rose-500/5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-rose-500 text-black">
+                  Allergy Conflict
+                </span>
+                <span className="text-sm font-semibold text-white">Allergen: {ac.allergen}</span>
+                <span className="text-zinc-500">&rarr;</span>
+                <span className="text-sm font-semibold text-white">Drug: {ac.conflicting_drug}</span>
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed">{ac.explanation}</p>
+            </div>
+          ))}
+
+          {di.contraindications?.map((ci: any, i: number) => (
+            <div key={i} className={`p-4 rounded-xl border ${ci.severity === "HIGH" ? "border-rose-500/40 bg-rose-500/5" : "border-amber-500/40 bg-amber-500/5"}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${ci.severity === "HIGH" ? "bg-rose-500 text-black" : "bg-amber-500 text-black"}`}>
+                  {ci.severity} Contraindication
+                </span>
+                <span className="text-sm font-semibold text-white">{ci.drug}</span>
+                <span className="text-xs text-zinc-400">with {ci.condition}</span>
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed">{ci.explanation}</p>
+            </div>
+          ))}
+
+          {di.dose_alerts?.map((da: any, i: number) => (
+            <div key={i} className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/5">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500 text-black">
+                  Dose Warning ({da.is_high ? "High" : "Low"})
+                </span>
+                <span className="text-sm font-semibold text-white">{da.drug}</span>
+              </div>
+              <p className="text-xs text-zinc-300 mt-1">
+                Prescribed: <strong className="text-white">{da.prescribed_dose}</strong> &bull; Expected standard: <strong className="text-zinc-200">{da.expected_range}</strong>
+              </p>
+              {da.note && <p className="text-xs text-zinc-400 mt-1 italic">{da.note}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderMissingInfoCard = () => {
+    if (!result?.clinical_decision_support?.missing_info?.length) return null;
+    return (
+      <div className="glass-card p-6 md:p-8 space-y-4 border-amber-500/25 bg-amber-950/10">
+        <div className="flex items-center gap-3 border-b border-amber-500/15 pb-4">
+          <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            <HelpCircle size={20} className="stroke-[2]" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-amber-300">
+              Missing Critical Information
+            </h3>
+            <p className="text-xs text-zinc-400">Important clinical details not documented in source</p>
+          </div>
+        </div>
+        <ul className="space-y-2.5 pt-1">
+          {result.clinical_decision_support.missing_info.map((m: any, i: number) => (
+            <li key={i} className="flex items-start gap-3 text-sm bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800">
+              <span className="text-amber-400 font-semibold shrink-0">&bull;</span>
+              <div>
+                <span className="font-medium text-zinc-200">{m.missing_item}</span>
+                <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">{m.why_important}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
+  const renderClinicalPearlsCard = () => {
+    if (!result?.clinical_decision_support?.clinical_pearls?.length) return null;
+    return (
+      <div className="glass-card p-6 md:p-8 space-y-4 border-indigo-500/25 bg-indigo-950/10">
+        <div className="flex items-center gap-3 border-b border-indigo-500/15 pb-4">
+          <div className="p-2 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+            <Sparkles size={20} className="stroke-[2]" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-indigo-300">Clinical Insights</h3>
+            <p className="text-xs text-zinc-400">Evidence-based guidelines & practice pearls</p>
+          </div>
+        </div>
+        <ul className="space-y-2.5 pt-1">
+          {result.clinical_decision_support.clinical_pearls.map((p: string, i: number) => (
+            <li key={i} className="text-sm text-zinc-300 bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800 leading-relaxed">
+              {p}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
   };
 
   const renderDocumentInspector = () => {
     if (!notes.trim()) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 py-12">
-          <FileText size={48} className="mb-3 text-zinc-600 opacity-60" />
-          <p className="text-sm font-bold">No prescription or notes loaded yet.</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 py-16">
+          <FileText size={44} className="mb-3 text-zinc-600 opacity-50" />
+          <p className="text-sm font-medium">No prescription or notes loaded yet.</p>
         </div>
       );
     }
@@ -388,30 +508,30 @@ export default function Home() {
             <div 
               key={lineNum}
               id={`source-line-${lineNum}`}
-              className={`flex items-start rounded-xl px-3 py-1.5 transition-all group ${
+              className={`flex items-start rounded-lg px-3 py-1.5 transition-all group ${
                 isTarget 
-                  ? "citation-active-target bg-[#ccff00]/20 text-white font-semibold" 
+                  ? "citation-active-target bg-indigo-500/15 text-white font-medium" 
                   : isCited 
-                  ? "bg-zinc-800/80 text-zinc-100 hover:bg-zinc-800 border-l-4 border-[#ccff00]" 
-                  : "text-zinc-400 hover:bg-zinc-800/40"
+                  ? "bg-zinc-900/70 text-zinc-200 border-l-2 border-indigo-500/80" 
+                  : "text-zinc-400 hover:bg-zinc-900/40"
               }`}
             >
               <div className="w-12 shrink-0 flex items-center justify-between pr-2 text-zinc-500 select-none">
-                <span className={`text-[10px] font-extrabold ${isTarget ? "text-[#ccff00]" : isCited ? "text-[#ccff00]" : ""}`}>
+                <span className={`text-[10px] ${isTarget ? "text-indigo-400 font-bold" : isCited ? "text-indigo-400 font-medium" : ""}`}>
                   L{lineNum}
                 </span>
                 {isCited && (
-                  <span className="w-2 h-2 rounded-full bg-[#ccff00] shadow-[0_0_8px_#ccff00]" title={`Cited by: ${citations?.join(", ")}`} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" title={`Cited by: ${citations?.join(", ")}`} />
                 )}
               </div>
               
-              <div className="flex-1 whitespace-pre-wrap break-words leading-relaxed pl-1">
+              <div className="flex-1 whitespace-pre-wrap break-words leading-relaxed pl-1 font-mono">
                 {line || <span className="opacity-20 select-none">&nbsp;</span>}
               </div>
 
               {citations && citations.length > 0 && (
                 <div className="hidden group-hover:flex shrink-0 items-center gap-1 pl-2">
-                  <span className="text-[10px] font-extrabold bg-[#ccff00] text-black border border-black px-1.5 py-0.5 rounded shadow-[1px_1px_0px_#000]">
+                  <span className="text-[10px] font-medium bg-zinc-800 text-indigo-300 border border-zinc-700 px-1.5 py-0.5 rounded">
                     {citations[0]} {citations.length > 1 ? `+${citations.length - 1}` : ""}
                   </span>
                 </div>
@@ -424,63 +544,64 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen text-zinc-100 selection:bg-[#ccff00] selection:text-black">
+    <div className="flex flex-col min-h-screen text-zinc-100 selection:bg-indigo-500 selection:text-white">
       
-      {/* Toast Alert Banner */}
+      {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-zinc-950 text-white border-2 border-[#ccff00] px-4 py-3 rounded-2xl shadow-[5px_5px_0px_#ccff00] text-sm font-extrabold animate-bounce">
-          <Sparkles size={18} className="text-[#ccff00]" />
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-zinc-900/90 backdrop-blur-xl text-zinc-100 border border-zinc-700 px-4 py-3 rounded-xl shadow-lg text-sm">
+          <Sparkles size={16} className="text-indigo-400" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-xl border-b-2 border-zinc-800 px-5 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      {/* Top Navigation Bar */}
+      <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/80 px-6 lg:px-12 py-4 flex flex-wrap items-center justify-between gap-4">
         
         {/* Brand */}
-        <div className="flex items-center gap-3">
-          <div className="bg-[#ccff00] p-2.5 rounded-2xl border-2 border-black shadow-[3px_3px_0px_#ff5500]">
-            <HeartPulse className="text-black w-6 h-6 stroke-[2.5]" />
+        <div className="flex items-center gap-3.5">
+          <div className="p-2 rounded-xl bg-indigo-600/15 border border-indigo-500/30 text-indigo-400">
+            <HeartPulse className="w-5 h-5 stroke-[2]" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white flex items-center gap-1.5">
-                <span>HEALTH</span>
-                <span className="bg-[#ccff00] text-black px-1.5 py-0.2 rounded-md font-mono text-base border border-black shadow-[2px_2px_0px_#000]">
-                  RADAR
-                </span>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-lg font-semibold tracking-tight text-white">
+                ANM Clinical Intelligence
               </h1>
-              <span className="bg-[#ff5500] text-white border-2 border-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider hidden sm:inline-block shadow-[2px_2px_0px_#000]">
-                EASY MEDICAL COPILOT
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium border border-zinc-700 bg-zinc-800/80 text-zinc-300">
+                Precision Engine
               </span>
             </div>
-            <div className="flex items-center gap-2.5 text-xs text-zinc-400 font-medium">
-              <span className="flex items-center gap-1 text-[#ccff00] font-bold">
-                <span className="w-2 h-2 rounded-full bg-[#ccff00] animate-ping" />
-                Easy Patient Language + Doctor Citations
-              </span>
-              <span className="text-zinc-600">•</span>
-              <span className="hidden md:inline font-mono text-[11px] text-zinc-400">18 ANM Clinical Rules</span>
-            </div>
+            <p className="text-xs text-zinc-400">
+              Deterministic Citation Grounding &bull; Strict Doctor vs AI Plan Separation
+            </p>
           </div>
         </div>
 
-        {/* Header Action Buttons */}
+        {/* View Switcher & Action Buttons */}
         <div className="flex items-center gap-3">
-          {!result && !notes && (
+          {/* Segmented View Mode Switcher */}
+          <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800">
             <button 
-              onClick={() => {
-                setNotes(SAMPLE_DEMO_NOTE);
-                setPatientId("DEMO-CARDIO-01");
-                setUploadFileName("emergency_cardio_note.txt");
-                showToast("⚡ Emergency Cardio Case loaded!");
-              }}
-              className="bg-[#ccff00] hover:bg-[#b8e600] text-black font-extrabold text-xs px-4 py-2.5 rounded-xl border-2 border-black shadow-[3px_3px_0px_#ff5500] hover:shadow-[1px_1px_0px_#ff5500] hover:translate-x-[2px] hover:translate-y-[2px] flex items-center gap-1.5 transition-all cursor-pointer"
+              onClick={() => setViewMode("patient")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                viewMode === "patient"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-zinc-400 hover:text-white"
+              }`}
             >
-              <Sparkles size={14} className="stroke-[3]" />
-              <span>Drop Sample Rx</span>
+              Patient View
             </button>
-          )}
+            <button 
+              onClick={() => setViewMode("clinical")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                viewMode === "clinical"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              Clinical Workstation
+            </button>
+          </div>
 
           {result && (
             <button 
@@ -489,485 +610,594 @@ export default function Home() {
                 setError(null);
                 setActiveCitedLine(null);
                 setActiveQuotedText(null);
-                showToast("✨ Fresh canvas ready!");
+                showToast("Cleared results.");
               }}
-              className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl border-2 border-zinc-700 shadow-[2px_2px_0px_#000] flex items-center gap-1.5 transition-all cursor-pointer"
+              className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white font-medium text-xs px-3 py-2 rounded-xl border border-zinc-800 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <RefreshCw size={13} />
-              <span>Reset Encounter</span>
+              <span>Reset</span>
             </button>
           )}
         </div>
       </header>
 
-      {/* Main Grid */}
-      <main className="flex-1 w-full max-w-[1920px] mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Main Workspace Layout */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8 md:px-10 md:py-10 space-y-10">
         
-        {/* ======================================================== */}
-        {/* LEFT PANEL: Ingestion & Live Line Inspector              */}
-        {/* ======================================================== */}
-        <div className="lg:col-span-5 flex flex-col h-[calc(100vh-105px)] bg-zinc-950/90 border-2 border-zinc-800 rounded-3xl shadow-[7px_7px_0px_#000] overflow-hidden">
+        {/* Top Controls Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Tabs Bar */}
-          <div className="px-5 py-3.5 border-b-2 border-zinc-800 flex items-center justify-between bg-zinc-900/60">
-            <div className="flex items-center gap-1.5 bg-black p-1 rounded-2xl border-2 border-zinc-800">
-              <button 
-                onClick={() => setLeftTab("editor")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                  leftTab === "editor"
-                    ? "bg-[#ccff00] text-black border-2 border-black shadow-[2px_2px_0px_#ff5500]"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-              >
-                <Edit3 size={13} className="stroke-[2.5]" />
-                <span>Upload & Type Rx</span>
-              </button>
-              
-              <button 
-                onClick={() => setLeftTab("inspector")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                  leftTab === "inspector"
-                    ? "bg-[#ccff00] text-black border-2 border-black shadow-[2px_2px_0px_#ff5500]"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-              >
-                <Layers size={13} className="stroke-[2.5]" />
-                <span>Line Radar</span>
-                {citedLinesMap.size > 0 && (
-                  <span className="ml-1 bg-black text-[#ccff00] text-[10px] px-1.5 py-0.2 rounded-full font-mono font-black border border-[#ccff00]">
-                    {citedLinesMap.size}
+          {/* ======================================================== */}
+          {/* LEFT: Clinical Source Ingestion & Radar                 */}
+          {/* ======================================================== */}
+          <div className="lg:col-span-5 flex flex-col glass-card overflow-hidden">
+            
+            {/* Header Tabs */}
+            <div className="px-5 py-3 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-950/40">
+              <div className="flex items-center gap-1 bg-zinc-900/80 p-0.5 rounded-lg border border-zinc-800">
+                <button 
+                  onClick={() => setLeftTab("editor")}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    leftTab === "editor"
+                      ? "bg-zinc-800 text-white shadow-sm"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  <Edit3 size={13} />
+                  <span>Clinical Notes</span>
+                </button>
+                
+                <button 
+                  onClick={() => setLeftTab("inspector")}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    leftTab === "inspector"
+                      ? "bg-zinc-800 text-white shadow-sm"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  <Layers size={13} />
+                  <span>Line Radar</span>
+                  {citedLinesMap.size > 0 && (
+                    <span className="ml-1 text-[10px] font-mono px-1.5 rounded-full bg-indigo-500/20 text-indigo-300">
+                      {citedLinesMap.size}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline">
+                  {noteMetrics.lines}L &bull; {noteMetrics.words}W
+                </span>
+                {notes && (
+                  <button 
+                    onClick={() => {
+                      setNotes("");
+                      setUploadFileName(null);
+                      setPatientId("");
+                      setResult(null);
+                      setActiveCitedLine(null);
+                    }}
+                    className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                    title="Clear notes"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Active Citation Focus Notification */}
+            {activeCitedLine && (
+              <div className="bg-indigo-950/40 border-b border-indigo-500/20 px-4 py-2 flex items-center justify-between text-xs text-indigo-200">
+                <div className="flex items-center gap-2 truncate">
+                  <BookmarkCheck size={14} className="text-indigo-400 shrink-0" />
+                  <span>
+                    Referenced line <strong className="text-white">L{activeCitedLine}</strong>:
+                    <span className="opacity-80 ml-1 truncate font-mono">
+                      &ldquo;{activeQuotedText}&rdquo;
+                    </span>
                   </span>
+                </div>
+                <button 
+                  onClick={() => {
+                    setActiveCitedLine(null);
+                    setActiveQuotedText(null);
+                  }}
+                  className="p-1 text-zinc-400 hover:text-white cursor-pointer"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+
+            {/* Left Panel Body */}
+            <div className="p-6 flex-1 flex flex-col gap-5 overflow-y-auto custom-scrollbar">
+              
+              {leftTab === "editor" ? (
+                <>
+                  {/* File Dropzone */}
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={e => e.target.files && e.target.files[0] && handleFileUpload(e.target.files[0])} 
+                    accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md" 
+                    className="hidden" 
+                  />
+
+                  <div 
+                    onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                    className={`border border-dashed rounded-xl p-5 transition-all cursor-pointer flex flex-col items-center justify-center text-center ${
+                      isDragging 
+                        ? 'border-indigo-500 bg-indigo-500/10' 
+                        : isUploading 
+                        ? 'border-amber-500/60 bg-amber-500/5 cursor-wait' 
+                        : uploadFileName 
+                        ? 'border-indigo-500/60 bg-indigo-500/5' 
+                        : 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/50 bg-zinc-900/30'
+                    }`}
+                  >
+                    {isUploading ? (
+                      <div className="flex items-center gap-3 py-1">
+                        <div className="w-5 h-5 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+                        <div className="text-left">
+                          <p className="text-sm font-medium text-amber-300">Processing prescription...</p>
+                          <p className="text-xs text-zinc-400">Transcribing notes using vision OCR</p>
+                        </div>
+                      </div>
+                    ) : uploadFileName ? (
+                      <div className="flex items-center justify-between w-full px-2">
+                        <div className="flex items-center gap-3 truncate">
+                          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                          <div className="text-left truncate">
+                            <p className="text-sm font-medium text-zinc-200 truncate">{uploadFileName}</p>
+                            <p className="text-xs text-zinc-400">Ready for structured extraction</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadFileName(null);
+                            if (fileInputRef.current) fileInputRef.current.value = "";
+                          }}
+                          className="text-zinc-500 hover:text-zinc-300 p-1 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 py-1">
+                        <UploadCloud size={20} className="text-zinc-500" />
+                        <p className="text-xs text-zinc-300 font-medium">
+                          Upload Prescription or Clinical Note
+                        </p>
+                        <p className="text-[11px] text-zinc-500">
+                          PDF, image (PNG/JPG), or text file
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Patient Identifier */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-400 flex items-center justify-between">
+                      <span>Patient Identifier</span>
+                      <span className="text-[10px] text-zinc-500 font-normal">Optional</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      value={patientId}
+                      placeholder="e.g. Ramesh Kumar or PT-10492"
+                      onChange={e => setPatientId(e.target.value)}
+                      className="w-full bg-zinc-900/60 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/70 transition-colors"
+                    />
+                  </div>
+
+                  {/* Clinical Text Area */}
+                  <div className="space-y-1.5 flex-1 flex flex-col min-h-[260px]">
+                    <label className="text-xs font-medium text-zinc-400">
+                      Source Clinical Notes
+                    </label>
+                    <textarea 
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      placeholder="Paste doctor notes, consultation transcripts, or discharge summary here..."
+                      className="w-full flex-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 text-xs font-mono text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/70 transition-colors resize-none custom-scrollbar leading-relaxed"
+                    />
+                  </div>
+                </>
+              ) : (
+                /* Line Radar */
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                  {renderDocumentInspector()}
+                </div>
+              )}
+
+            </div>
+
+            {/* Bottom Ingestion Footer */}
+            <div className="p-5 border-t border-zinc-800/80 bg-zinc-950/40 space-y-3">
+              {error && (
+                <div className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl flex items-start gap-2">
+                  <AlertTriangle size={15} className="text-rose-400 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{error}</span>
+                </div>
+              )}
+              
+              <div className="flex items-center justify-between text-xs text-zinc-400">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${agenticMode ? "bg-indigo-400" : "bg-zinc-600"}`} />
+                  <span className="text-zinc-300 font-medium">Multi-Pass Self-Correction</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAgenticMode(prev => !prev)}
+                  className={`px-2 py-0.5 rounded text-[10px] uppercase font-mono font-medium border transition-all cursor-pointer ${
+                    agenticMode 
+                      ? "bg-indigo-600/20 text-indigo-300 border-indigo-500/40"
+                      : "bg-zinc-800 text-zinc-400 border-zinc-700"
+                  }`}
+                >
+                  {agenticMode ? "Enabled" : "Off"}
+                </button>
+              </div>
+
+              <button 
+                onClick={handleExtract}
+                disabled={isLoading}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Extracting & Validating Citations...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap size={16} />
+                    <span>Run Precision Clinical Extraction</span>
+                  </>
                 )}
               </button>
             </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-zinc-400 font-bold hidden sm:inline">
-                {noteMetrics.lines}L • {noteMetrics.words}W
-              </span>
-              {notes && (
-                <button 
-                  onClick={() => {
-                    setNotes("");
-                    setUploadFileName(null);
-                    setPatientId("");
-                    setResult(null);
-                    setActiveCitedLine(null);
-                    showToast("Cleared notes.");
-                  }}
-                  className="p-1.5 text-zinc-400 hover:text-[#ff2a5f] hover:bg-[#ff2a5f]/10 rounded-lg transition-colors cursor-pointer"
-                  title="Wipe notes"
-                >
-                  <Trash2 size={15} />
-                </button>
-              )}
-            </div>
           </div>
 
-          {/* Active Citation Focus Banner */}
-          {activeCitedLine && (
-            <div className="bg-[#ccff00] border-b-2 border-black px-4 py-2 flex items-center justify-between text-xs text-black font-extrabold">
-              <div className="flex items-center gap-2 truncate">
-                <BookmarkCheck size={16} className="text-black stroke-[3] shrink-0" />
-                <span>
-                  LOCKED ON <strong>LINE {activeCitedLine}</strong>:
-                  <span className="italic opacity-85 ml-1 truncate font-normal">
-                    &ldquo;{activeQuotedText}&rdquo;
-                  </span>
-                </span>
-              </div>
-              <button 
-                onClick={() => {
-                  setActiveCitedLine(null);
-                  setActiveQuotedText(null);
-                }}
-                className="bg-black text-[#ccff00] hover:text-white p-1 rounded-md cursor-pointer"
-                title="Dismiss focus"
-              >
-                <X size={12} className="stroke-[3]" />
-              </button>
-            </div>
-          )}
-
-          {/* Left Panel Body */}
-          <div className="flex-1 p-5 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+          {/* ======================================================== */}
+          {/* RIGHT: Structured Output & Workstation                  */}
+          {/* ======================================================== */}
+          <div className="lg:col-span-7 flex flex-col space-y-6">
             
-            {leftTab === "editor" ? (
-              <>
-                {/* Upload Dropzone */}
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={e => e.target.files && e.target.files[0] && handleFileUpload(e.target.files[0])} 
-                  accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md" 
-                  className="hidden" 
-                />
-
-                <div 
-                  onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onDrop={handleDrop}
-                  onClick={() => !isUploading && fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-5 transition-all cursor-pointer flex flex-col items-center justify-center text-center ${
-                    isDragging 
-                      ? 'border-[#ccff00] bg-[#ccff00]/15 scale-[0.98]' 
-                      : isUploading 
-                      ? 'border-[#ff5500] bg-zinc-900 cursor-wait' 
-                      : uploadFileName 
-                      ? 'border-[#ccff00] bg-[#ccff00]/10 shadow-[3px_3px_0px_#ccff00]' 
-                      : 'border-zinc-700 hover:border-[#ccff00] hover:bg-zinc-900/60 bg-zinc-900/40 shadow-[4px_4px_0px_#000]'
-                  }`}
-                >
-                  {isUploading ? (
-                    <div className="flex items-center gap-3.5 py-2">
-                      <div className="w-7 h-7 border-4 border-[#ff5500]/30 border-t-[#ff5500] rounded-full animate-spin" />
-                      <div className="text-left">
-                        <p className="text-sm font-black text-[#ff5500]">Reading Prescription File...</p>
-                        <p className="text-xs text-zinc-400">Extracting medicines and doctor notes via Vision AI</p>
-                      </div>
-                    </div>
-                  ) : uploadFileName ? (
-                    <div className="flex items-center justify-between w-full px-2">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-[#ccff00] text-black p-2.5 rounded-xl border border-black shadow-[2px_2px_0px_#000]">
-                          <CheckCircle2 size={18} className="stroke-[3]" />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-black text-[#ccff00] truncate max-w-[280px]">{uploadFileName}</p>
-                          <p className="text-xs text-zinc-400">Prescription read & ready to analyze</p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setUploadFileName(null);
-                          if (fileInputRef.current) fileInputRef.current.value = "";
-                        }}
-                        className="text-zinc-400 hover:text-[#ff2a5f] p-1.5 rounded-lg transition-colors cursor-pointer"
-                        title="Remove file"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 py-1">
-                      <div className="p-3 bg-[#ccff00] text-black rounded-2xl border-2 border-black shadow-[3px_3px_0px_#000]">
-                        <UploadCloud size={24} className="stroke-[2.5]" />
-                      </div>
-                      <p className="text-sm font-black text-white">
-                        Upload Any Doctor Prescription / Report
-                      </p>
-                      <p className="text-xs text-zinc-400 max-w-sm">
-                        PDF, Mobile Photo (JPG/PNG), or Document &mdash; <span className="text-[#ccff00] font-bold underline">browse files</span>
-                      </p>
-                    </div>
-                  )}
+            {/* Empty State */}
+            {!result && !isLoading && (
+              <div className="glass-card flex flex-col items-center justify-center text-center p-16 space-y-4">
+                <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-500">
+                  <Compass size={36} />
                 </div>
-
-                {/* Patient ID Metadata */}
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-black text-zinc-400 uppercase tracking-wider flex items-center justify-between">
-                    <span>Patient Name / ID</span>
-                    <span className="text-[10px] text-zinc-500 font-mono font-normal">auto-detected if in note</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    value={patientId}
-                    placeholder="e.g. Ramesh Kumar or PT-10492"
-                    onChange={e => setPatientId(e.target.value)}
-                    className="w-full bg-zinc-900 border-2 border-zinc-700 rounded-xl px-4 py-2.5 text-sm font-bold text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ccff00] transition-colors shadow-[3px_3px_0px_#000]"
-                  />
+                <div className="space-y-1.5 max-w-md">
+                  <h3 className="text-base font-semibold text-zinc-200">Awaiting Clinical Encounter</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Paste consultation notes or upload a prescription file on the left to extract structured clinical data and generate verified summaries.
+                  </p>
                 </div>
-
-                {/* Clinical Notes Input */}
-                <div className="space-y-1.5 flex-1 flex flex-col min-h-[260px]">
-                  <label className="text-[11px] font-black text-zinc-400 uppercase tracking-wider">
-                    Doctor&apos;s Prescription / Clinical Text
-                  </label>
-                  <textarea 
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="Type or paste any prescription text, doctor handwriting transcript, or hospital discharge notes here..."
-                    className="w-full flex-1 bg-zinc-900 border-2 border-zinc-700 rounded-xl p-4 text-sm font-mono text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-[#ccff00] transition-colors resize-none custom-scrollbar leading-relaxed shadow-[3px_3px_0px_#000]"
-                  />
-                </div>
-              </>
-            ) : (
-              /* Line Radar */
-              <div className="bg-zinc-900/90 border-2 border-zinc-800 rounded-2xl p-4 flex-1 overflow-y-auto custom-scrollbar shadow-[4px_4px_0px_#000]">
-                {renderDocumentInspector()}
               </div>
             )}
 
-          </div>
-
-          {/* Action Button */}
-          <div className="p-5 pt-3 border-t-2 border-zinc-800 bg-zinc-950/80">
-            {error && (
-              <div className="mb-3 text-black text-xs font-bold bg-[#ff2a5f] p-3 rounded-xl border-2 border-black flex items-start gap-2 shadow-[3px_3px_0px_#000]">
-                <AlertTriangle size={16} className="text-black shrink-0 stroke-[2.5]" />
-                <span className="leading-snug">{error}</span>
+            {/* Loading State */}
+            {isLoading && (
+              <div className="glass-card flex flex-col items-center justify-center text-center p-16 space-y-4">
+                <div className="w-10 h-10 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-zinc-200">Executing Grounded Clinical Analysis...</p>
+                  <p className="text-xs text-zinc-400 font-mono">Verifying line citations, normalizing RxNorm / LOINC, separating doctor plan</p>
+                </div>
               </div>
             )}
-            
-            <button 
-              onClick={handleExtract}
-              disabled={isLoading}
-              className="w-full bg-[#ccff00] hover:bg-[#b8e600] text-black font-black text-sm py-4 px-6 rounded-2xl border-2 border-black shadow-[5px_5px_0px_#ff5500] hover:shadow-[1px_1px_0px_#ff5500] hover:translate-x-[4px] hover:translate-y-[4px] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer uppercase tracking-wider"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-5 h-5 border-3 border-black/30 border-t-black rounded-full animate-spin" />
-                  <span>Translating to Easy Language & Medicines...</span>
-                </>
-              ) : (
-                <>
-                  <Zap size={18} className="fill-black" />
-                  <span>Extract Medicines & Simple Health Summary</span>
-                  <ArrowRight size={18} className="stroke-[3]" />
-                </>
-              )}
-            </button>
-          </div>
-        </div>
 
-        {/* ======================================================== */}
-        {/* RIGHT PANEL: Structured Output Bento                      */}
-        {/* ======================================================== */}
-        <div className="lg:col-span-7 flex flex-col h-[calc(100vh-105px)] bg-zinc-950/90 border-2 border-zinc-800 rounded-3xl shadow-[7px_7px_0px_#000] overflow-hidden">
-          
-          {/* Header & Mode Switcher */}
-          <div className="px-6 py-3.5 border-b-2 border-zinc-800 flex flex-wrap items-center justify-between gap-3 bg-zinc-900/60">
-            
-            {/* View Mode Toggle: Patient vs Doctor */}
-            <div className="flex items-center gap-1.5 bg-black p-1 rounded-2xl border-2 border-zinc-800">
-              <button 
-                onClick={() => setViewMode("patient")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === "patient"
-                    ? "bg-[#ccff00] text-black border-2 border-black shadow-[2px_2px_0px_#ff5500]"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-              >
-                <span>🟢 Patient View (Easy Words)</span>
-              </button>
-              
-              <button 
-                onClick={() => setViewMode("clinical")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === "clinical"
-                    ? "bg-[#ccff00] text-black border-2 border-black shadow-[2px_2px_0px_#ff5500]"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-              >
-                <span>🩺 Doctor View (EHR)</span>
-              </button>
-            </div>
-
-            {/* Export Toolbar */}
+            {/* Populated Result View */}
             {result && (
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={handleCopySummary}
-                  className="px-3 py-1.5 bg-zinc-800 hover:bg-[#ccff00] text-zinc-300 hover:text-black font-extrabold rounded-xl text-xs border-2 border-zinc-700 hover:border-black shadow-[2px_2px_0px_#000] flex items-center gap-1.5 transition-all cursor-pointer"
-                  title="Copy easy summary & medicines"
-                >
-                  <Copy size={13} className="stroke-[2.5]" />
-                  <span>Copy</span>
-                </button>
-
-                <button 
-                  onClick={handleExportJSON}
-                  className="px-3 py-1.5 bg-zinc-800 hover:bg-[#ff5500] text-zinc-300 hover:text-white font-extrabold rounded-xl text-xs border-2 border-zinc-700 hover:border-black shadow-[2px_2px_0px_#000] flex items-center gap-1.5 transition-all cursor-pointer"
-                  title="Download JSON"
-                >
-                  <Download size={13} className="stroke-[2.5]" />
-                  <span>JSON</span>
-                </button>
-
-                <button 
-                  onClick={handlePrint}
-                  className="px-3 py-1.5 bg-zinc-800 hover:bg-white text-zinc-300 hover:text-black font-extrabold rounded-xl text-xs border-2 border-zinc-700 hover:border-black shadow-[2px_2px_0px_#000] flex items-center gap-1.5 transition-all cursor-pointer"
-                  title="Print patient report"
-                >
-                  <Printer size={13} className="stroke-[2.5]" />
-                  <span>Print</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Empty State */}
-          {!result && !isLoading && (
-            <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 p-8 text-center">
-              <div className="p-5 bg-zinc-900 rounded-3xl border-2 border-zinc-800 mb-4 shadow-[4px_4px_0px_#000]">
-                <ListTodo size={50} className="text-zinc-600" />
-              </div>
-              <h3 className="text-lg font-black text-white mb-1">No Prescription Processed Yet</h3>
-              <p className="text-xs text-zinc-400 max-w-sm">
-                Upload a prescription photo/PDF or click <span className="text-[#ccff00] font-black underline">&ldquo;Drop Sample Rx&rdquo;</span> at the top to generate a simple, patient-friendly summary and prescribed medicines stack.
-              </p>
-            </div>
-          )}
-
-          {/* Loading Animation */}
-          {isLoading && (
-            <div className="flex-1 flex flex-col items-center justify-center p-8">
-              <div className="relative mb-6">
-                <div className="w-16 h-16 border-4 border-zinc-800 border-t-[#ccff00] rounded-full animate-spin shadow-[0_0_20px_#ccff00]" />
-                <Zap size={24} className="text-[#ccff00] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 fill-[#ccff00]" />
-              </div>
-              <p className="text-white font-black text-sm mb-1">Analyzing Prescription & Simplifying Language...</p>
-              <p className="text-xs font-mono text-zinc-400 max-w-sm text-center">
-                Fetching exact medicine names, translating doctor notes to simple English, and verifying evidence lines.
-              </p>
-            </div>
-          )}
-
-          {/* Populated Result View */}
-          {result && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              
-              {/* Quick Summary Bento Stats */}
-              <div className="px-6 py-3 border-b-2 border-zinc-800 bg-zinc-950/60">
+              <div className="space-y-6">
+                
+                {/* Metric Strip */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  
-                  {/* Prescribed Medicines Count */}
-                  <div className="bg-zinc-900 border-2 border-black rounded-2xl p-3 shadow-[3px_3px_0px_#ccff00] flex items-center justify-between">
+                  <div className="glass-card p-4 flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-black text-[#ccff00]">{result.summary.current_medications?.length || 0}</div>
-                      <div className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">Medicines Prescribed</div>
+                      <div className="text-xl font-semibold text-white">{result.summary.current_medications?.length || 0}</div>
+                      <div className="text-[11px] text-zinc-400">Medications</div>
                     </div>
-                    <Pill size={20} className="text-[#ccff00] stroke-[2.5]" />
+                    <Pill size={18} className="text-indigo-400" />
                   </div>
 
-                  {/* Recommended Next Tests / Moves */}
-                  <div className="bg-zinc-900 border-2 border-black rounded-2xl p-3 shadow-[3px_3px_0px_#ff5500] flex items-center justify-between">
+                  <div className="glass-card p-4 flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-black text-[#ff5500]">{result.summary.next_steps?.length || result.summary.pending_items?.length || 0}</div>
-                      <div className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">Suggested Tests</div>
+                      <div className="text-xl font-semibold text-white">{result.summary.recent_labs?.length || 0}</div>
+                      <div className="text-[11px] text-zinc-400">Investigations</div>
                     </div>
-                    <CalendarCheck size={20} className="text-[#ff5500] stroke-[2.5]" />
+                    <Microscope size={18} className="text-sky-400" />
                   </div>
 
-                  {/* Safety / Red Flags */}
-                  <div className={`border-2 border-black rounded-2xl p-3 flex items-center justify-between ${
-                    result.summary.red_flags?.length > 0
-                      ? "bg-zinc-900 shadow-[3px_3px_0px_#ff2a5f]"
-                      : "bg-zinc-900 shadow-[3px_3px_0px_#ccff00]"
-                  }`}>
+                  <div className="glass-card p-4 flex items-center justify-between">
                     <div>
-                      <div className={`text-2xl font-black ${result.summary.red_flags?.length > 0 ? "text-[#ff2a5f]" : "text-[#ccff00]"}`}>
+                      <div className={`text-xl font-semibold ${result.summary.red_flags?.length > 0 ? "text-rose-400" : "text-emerald-400"}`}>
                         {result.summary.red_flags?.length || 0}
                       </div>
-                      <div className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">Warning Flags</div>
+                      <div className="text-[11px] text-zinc-400">Urgent Signs</div>
                     </div>
-                    <AlertOctagon size={20} className={result.summary.red_flags?.length > 0 ? "text-[#ff2a5f] stroke-[2.5]" : "text-[#ccff00] stroke-[2.5]"} />
+                    <AlertOctagon size={18} className={result.summary.red_flags?.length > 0 ? "text-rose-400" : "text-emerald-400"} />
                   </div>
 
-                  {/* Verified Citations */}
-                  <div className="bg-zinc-900 border-2 border-black rounded-2xl p-3 shadow-[3px_3px_0px_#ffffff] flex items-center justify-between">
+                  <div className="glass-card p-4 flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-black text-white">{result.summary_stats.verified_count}</div>
-                      <div className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">Facts Verified</div>
+                      <div className="text-xl font-semibold text-emerald-400">{result.summary_stats.verified_count}</div>
+                      <div className="text-[11px] text-zinc-400">Verified Citations</div>
                     </div>
-                    <CheckCircle2 size={20} className="text-white stroke-[2.5]" />
+                    <CheckCircle2 size={18} className="text-emerald-400" />
                   </div>
-
                 </div>
-              </div>
 
-              {/* Workstation Content Area */}
-              <div className="p-6 flex-1 overflow-y-auto custom-scrollbar space-y-6">
+                {/* Urgency Score Card */}
+                {result?.clinical_decision_support?.urgency && (
+                  <div className="glass-card p-4 px-5 flex items-center justify-between gap-4 border-indigo-500/20 bg-indigo-950/10">
+                    <div className="flex items-center gap-3">
+                      <div className="text-xl font-bold text-indigo-400">
+                        {result.clinical_decision_support.urgency.level}/5
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase font-medium tracking-wide text-zinc-300">
+                          {result.clinical_decision_support.urgency.label} Urgency Level
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          {result.clinical_decision_support.urgency.clinical_context}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {result.clinical_decision_support.urgency.reasons?.slice(0, 2).map((r: string, i: number) => (
+                        <span key={i} className="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
+                          {r}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Export Buttons */}
+                <div className="flex items-center justify-end gap-2 text-xs">
+                  <button 
+                    onClick={handleCopySummary}
+                    className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Copy size={13} />
+                    <span>Copy</span>
+                  </button>
+                  <button 
+                    onClick={handleExportJSON}
+                    className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Download size={13} />
+                    <span>JSON</span>
+                  </button>
+                  <button 
+                    onClick={handleExportFHIR}
+                    className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Activity size={13} />
+                    <span>FHIR R4</span>
+                  </button>
+                  <button 
+                    onClick={handlePrint}
+                    className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Printer size={13} />
+                    <span>Print</span>
+                  </button>
+                </div>
 
                 {/* ========================================================== */}
-                {/* MODE A: 🟢 PATIENT-FRIENDLY VIEW (ASAN BHASHA / EASY WORDS) */}
+                {/* MODE A: PATIENT-FRIENDLY VIEW                              */}
                 {/* ========================================================== */}
                 {viewMode === "patient" && (
                   <div className="space-y-6">
                     
-                    {/* 1. EASY LANGUAGE NARRATIVE SUMMARY */}
-                    <div className="bg-zinc-900 border-2 border-black rounded-3xl p-6 shadow-[5px_5px_0px_#ccff00]">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-2 rounded-xl bg-[#ccff00] text-black border border-black shadow-[2px_2px_0px_#000]">
-                            <Sparkle size={18} className="stroke-[2.5]" />
+                    {/* 1. NARRATIVE PATIENT SUMMARY */}
+                    <div className="glass-card p-6 md:p-8 space-y-4">
+                      <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                            <Sparkle size={18} />
                           </div>
                           <div>
-                            <h3 className="text-sm font-black text-[#ccff00] uppercase tracking-wider">
-                              What Is Happening To You (Simple Explanation)
+                            <h3 className="text-base font-semibold text-white">
+                              Patient Health Summary
                             </h3>
-                            <p className="text-xs text-zinc-400">Written in plain, everyday English for you and your family</p>
+                            <p className="text-xs text-zinc-400">Written in plain language for you and your family</p>
                           </div>
                         </div>
-                        <span className="text-[10px] font-mono font-bold bg-black text-[#ccff00] px-2.5 py-1 rounded-full border border-[#ccff00]">
-                          Easy Words
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-zinc-700 bg-zinc-800/80 text-zinc-300">
+                          Plain Language
                         </span>
                       </div>
 
-                      <div className="bg-black/50 border border-zinc-800 rounded-2xl p-4 mt-3">
-                        <p className="text-sm leading-relaxed text-zinc-100 font-medium">
-                          {result.summary.narrative_summary || (
-                            <span>
-                              You were seen for <strong>{result.summary.chief_complaint || "your health concerns"}</strong>. 
-                              The doctor documented key findings and outlined the required medicine and follow-up plan below.
-                            </span>
-                          )}
-                        </p>
+                      <div className="text-sm leading-relaxed text-zinc-200 font-normal space-y-3 pt-1">
+                        <p>{result.summary.narrative_summary}</p>
                       </div>
                     </div>
 
-                    {/* 2. PROMINENT PRESCRIBED MEDICINES SHOWCASE */}
-                    <div className="bg-zinc-900 border-2 border-black rounded-3xl p-6 shadow-[5px_5px_0px_#ff5500]">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-2 rounded-xl bg-[#ff5500] text-black border border-black shadow-[2px_2px_0px_#000]">
-                            <Pill size={20} className="stroke-[2.5]" />
+                    {/* 2. DOCTOR-DOCUMENTED PLAN (STRICT CLINICIAN INSTRUCTIONS) */}
+                    {result.summary.doctor_recommendations?.length > 0 && (
+                      <div className="glass-card p-6 md:p-8 space-y-4 border-indigo-500/30 bg-indigo-950/10">
+                        <div className="flex items-center justify-between border-b border-indigo-500/20 pb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              <Stethoscope size={18} />
+                            </div>
+                            <div>
+                              <h3 className="text-base font-semibold text-indigo-200">
+                                Doctor-Documented Plan
+                              </h3>
+                              <p className="text-xs text-zinc-400">
+                                Exact instructions recorded by the doctor during your consultation
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-indigo-500/40 bg-indigo-500/20 text-indigo-300">
+                            Clinician Documented
+                          </span>
+                        </div>
+
+                        <ul className="space-y-2.5 pt-1">
+                          {result.summary.doctor_recommendations.map((rec: string, i: number) => (
+                            <li key={i} className="flex items-start gap-3 text-sm bg-zinc-900/70 p-3.5 rounded-xl border border-zinc-800">
+                              <span className="text-indigo-400 font-semibold mt-0.5">&rarr;</span>
+                              <span className="font-medium text-zinc-100">{rec}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* 3. AI-SUGGESTED NEXT STEPS (STRUCTURED) */}
+                    {(result.summary.ai_recommendations?.length > 0 || result.summary.next_steps?.length > 0) && (
+                      <div className="glass-card p-6 md:p-8 space-y-4 border-zinc-800/80">
+                        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-zinc-800 text-zinc-300 border border-zinc-700">
+                              <CalendarCheck size={18} />
+                            </div>
+                            <div>
+                              <h3 className="text-base font-semibold text-white">
+                                AI-Suggested Next Steps
+                              </h3>
+                              <p className="text-xs text-zinc-400">
+                                Suggested investigations & questions to discuss with your doctor (Not documented as prescribed)
+                              </p>
+                            </div>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-zinc-700 bg-zinc-800 text-zinc-400">
+                            AI-Suggested &bull; Not Prescribed
+                          </span>
+                        </div>
+
+                        <div className="space-y-3.5 pt-1">
+                          {result.summary.ai_recommendations?.length > 0 ? (
+                            result.summary.ai_recommendations.map((item: any, i: number) => {
+                              const priorityColor = 
+                                item.priority === "urgent" 
+                                  ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+                                  : item.priority === "prompt"
+                                  ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                                  : "border-zinc-700 bg-zinc-800/80 text-zinc-300";
+
+                              return (
+                                <div key={i} className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/50 space-y-2">
+                                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                                    <div className="space-y-0.5">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-sm font-semibold text-white">
+                                          {item.recommendation}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-medium border ${priorityColor}`}>
+                                          {item.priority}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <span className="text-[11px] text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60">
+                                      {item.prescription_status || "Not documented as prescribed"}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-xs text-zinc-300 leading-relaxed">
+                                    <strong className="text-zinc-400 font-medium">Clinical Rationale:</strong> {item.reason}
+                                  </p>
+
+                                  <div className="flex items-center justify-between text-xs text-zinc-400 pt-1 border-t border-zinc-800/60">
+                                    <span>Timing: <strong className="text-zinc-300 font-normal">{item.timing || "To be determined by clinician"}</strong></span>
+                                    {item.caveat && (
+                                      <span className="text-amber-300/90 italic max-w-md truncate">
+                                        Note: {item.caveat}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            result.summary.next_steps.map((st: string, i: number) => (
+                              <div key={i} className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/50 text-xs text-zinc-200">
+                                {st}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. MEDICATIONS SHOWCASE */}
+                    <div className="glass-card p-6 md:p-8 space-y-4">
+                      <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                            <Pill size={18} />
                           </div>
                           <div>
-                            <h3 className="text-base font-black text-white uppercase tracking-wider">
-                              Prescribed Medicines & How to Take Them
+                            <h3 className="text-base font-semibold text-white">
+                              Prescribed & Reported Medications
                             </h3>
-                            <p className="text-xs text-zinc-400">All medications identified from your prescription</p>
+                            <p className="text-xs text-zinc-400">Identified from source notes without frequency duplication</p>
                           </div>
                         </div>
-                        <span className="bg-[#ff5500] text-black text-[11px] font-black px-3 py-1 rounded-full border border-black shadow-[2px_2px_0px_#000]">
-                          {result.summary.current_medications?.length || 0} Medicines Found
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-zinc-700 bg-zinc-800/80 text-zinc-300">
+                          {result.summary.current_medications?.length || 0} Medications
                         </span>
                       </div>
 
                       {result.summary.current_medications?.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                           {result.summary.current_medications.map((m: any, i: number) => {
-                            const details = [m.dose, m.route, m.frequency].filter(Boolean).join(" • ");
                             return (
-                              <div key={i} className="bg-black border-2 border-zinc-700 hover:border-[#ccff00] rounded-2xl p-4 flex flex-col justify-between shadow-[3px_3px_0px_#000] transition-colors">
-                                <div>
+                              <div key={i} className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 flex flex-col justify-between space-y-3">
+                                <div className="space-y-2">
                                   <div className="flex items-start justify-between gap-2">
-                                    <span className="text-base font-black text-white">{m.drug}</span>
-                                    {m.status && (
-                                      <span className="bg-zinc-800 text-[#ccff00] text-[10px] font-mono font-black px-2 py-0.5 rounded-full uppercase border border-zinc-700">
-                                        {m.status}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className="mt-2 flex items-center gap-2">
-                                    <span className="text-xs font-mono font-bold bg-zinc-800 text-zinc-200 px-2.5 py-1 rounded-lg border border-zinc-700">
-                                      {details || "Take as directed by doctor"}
+                                    <div>
+                                      <span className="text-sm font-semibold text-white">{m.drug}</span>
+                                      {m.route && <span className="text-xs text-zinc-400 ml-1.5">({m.route})</span>}
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-medium border border-zinc-700 bg-zinc-800 text-zinc-300">
+                                      {m.status || "Current"}
                                     </span>
                                   </div>
 
+                                  <div className="text-xs text-zinc-300 space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-zinc-400">Dose & Frequency:</span>
+                                      <strong className="text-white font-medium">{m.dose || "Dose not stated"}</strong>
+                                      <span>&bull;</span>
+                                      <strong className="text-indigo-300 font-medium">{m.frequency || "Schedule not specified"}</strong>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-zinc-400">
+                                      <span>Duration: <strong className="text-zinc-300 font-normal">{m.duration || "Duration not specified"}</strong></span>
+                                      <span>&bull;</span>
+                                      <span>Type: <strong className="text-zinc-300 font-normal">{m.prn_status || "Scheduled"}</strong></span>
+                                    </div>
+                                  </div>
+
+                                  {m.missing_information && (
+                                    <p className="text-xs text-amber-300/90 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                                      {m.missing_information}
+                                    </p>
+                                  )}
+
                                   {m.uncertainty && (
-                                    <p className="text-xs text-[#ff5500] mt-2 font-bold flex items-center gap-1">
-                                      <AlertTriangle size={13} className="shrink-0 stroke-[3]" />
-                                      <span>Verify with doctor/chemist: {m.uncertainty}</span>
+                                    <p className="text-xs text-amber-400 italic">
+                                      Note: {m.uncertainty}
                                     </p>
                                   )}
                                 </div>
 
-                                <div className="mt-3 pt-2 border-t border-zinc-800 flex items-center justify-between text-xs">
-                                  <span className="text-[11px] text-zinc-400">Prescription source</span>
+                                <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+                                  <span className="text-[11px] text-zinc-500">Source Line:</span>
                                   {renderCitationBadge(m.source)}
                                 </div>
                               </div>
@@ -975,105 +1205,59 @@ export default function Home() {
                           })}
                         </div>
                       ) : (
-                        <div className="bg-black/40 p-4 rounded-xl text-center text-xs text-zinc-400">
-                          No specific medications found in the prescription notes.
-                        </div>
+                        <p className="text-xs text-zinc-500 italic py-2">No medications recorded in notes.</p>
                       )}
                     </div>
 
-                    {/* 3. EXPLICIT SUGGESTIONS & NAMED TESTS */}
-                    <div className="bg-zinc-900 border-2 border-black rounded-3xl p-6 shadow-[5px_5px_0px_#ffffff]">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-2 rounded-xl bg-white text-black border border-black shadow-[2px_2px_0px_#000]">
-                            <CalendarCheck size={20} className="stroke-[2.5]" />
-                          </div>
-                          <div>
-                            <h3 className="text-base font-black text-white uppercase tracking-wider">
-                              Recommended Next Moves & Named Tests
-                            </h3>
-                            <p className="text-xs text-zinc-400">Specific tests and doctor visits suggested for your care</p>
-                          </div>
-                        </div>
-                        <span className="bg-white text-black text-[11px] font-black px-3 py-1 rounded-full border border-black shadow-[2px_2px_0px_#000]">
-                          Action Required
-                        </span>
-                      </div>
-
-                      {/* Doctor Plan */}
-                      {result.summary.doctor_recommendations?.length > 0 && (
-                        <div className="mb-4">
-                          <strong className="text-[11px] font-black text-[#ccff00] uppercase tracking-wider block mb-2">
-                            Doctor&apos;s Stated Instructions:
-                          </strong>
-                          <ul className="space-y-2">
-                            {result.summary.doctor_recommendations.map((rec: string, i: number) => (
-                              <li key={i} className="text-sm flex items-start text-white bg-black/60 p-3 rounded-2xl border border-zinc-800">
-                                <span className="text-[#ccff00] mr-2 font-black">→</span>
-                                <span className="font-extrabold">{rec}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Named Next Steps (Tests / Specialists) */}
-                      {result.summary.next_steps?.length > 0 && (
-                        <div>
-                          <strong className="text-[11px] font-black text-[#ff5500] uppercase tracking-wider block mb-2">
-                            Suggested Tests & Checkups to Schedule:
-                          </strong>
-                          <ul className="space-y-2">
-                            {result.summary.next_steps.map((step: string, i: number) => (
-                              <li key={i} className="text-sm flex items-start text-zinc-100 bg-black/60 p-3 rounded-2xl border border-zinc-800">
-                                <span className="text-[#ff5500] mr-2 font-black">✓</span>
-                                <div className="flex-1 font-semibold leading-relaxed">
-                                  {step}
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 4. RED FLAGS / WHEN TO RETURN IMMEDIATELY */}
+                    {/* 5. URGENT CLINICAL CONCERNS & SAFETY-NET */}
                     {result.summary.red_flags?.length > 0 && (
-                      <div className="bg-zinc-900 border-2 border-black p-6 rounded-3xl shadow-[5px_5px_0px_#ff2a5f]">
-                        <div className="flex items-center gap-2.5 mb-3">
-                          <div className="p-2 rounded-xl bg-[#ff2a5f] text-black border border-black shadow-[2px_2px_0px_#000]">
-                            <AlertOctagon size={20} className="stroke-[3]" />
+                      <div className="glass-card p-6 md:p-8 space-y-4 border-rose-500/30 bg-rose-950/10">
+                        <div className="flex items-center justify-between border-b border-rose-500/20 pb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              <AlertOctagon size={18} />
+                            </div>
+                            <div>
+                              <h3 className="text-base font-semibold text-rose-200">
+                                Urgent Clinical Concerns & Warning Signs
+                              </h3>
+                              <p className="text-xs text-zinc-400">
+                                When to seek prompt clinical review or emergency care
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-base font-black text-[#ff2a5f] uppercase tracking-wider">
-                              Warning Signs &mdash; Go to ER If You Notice:
-                            </h3>
-                            <p className="text-xs text-zinc-400">Important red flag symptoms that need emergency care</p>
-                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-rose-500/40 bg-rose-500/20 text-rose-300">
+                            Safety-Net Guidance
+                          </span>
                         </div>
 
-                        <ul className="space-y-2 mt-3">
+                        <ul className="space-y-2.5 pt-1">
                           {result.summary.red_flags.map((item: string, i: number) => (
-                            <li key={i} className="text-sm flex items-start text-white bg-black/80 p-3.5 rounded-2xl border-2 border-zinc-800">
-                              <span className="text-[#ff2a5f] font-black mr-2 text-lg leading-none">!</span>
-                              <span className="font-black leading-snug">{item}</span>
+                            <li key={i} className="flex items-start gap-3 text-sm bg-zinc-900/80 p-3.5 rounded-xl border border-zinc-800">
+                              <span className="text-rose-400 font-bold shrink-0 mt-0.5">!</span>
+                              <span className="text-zinc-200 leading-relaxed">{item}</span>
                             </li>
                           ))}
                         </ul>
                       </div>
                     )}
 
+                    {/* 6. PHARMACOTHERAPY SAFETY & CLINICAL PEARLS */}
+                    {renderDrugIntelligenceCard()}
+                    {renderMissingInfoCard()}
+                    {renderClinicalPearlsCard()}
+
                   </div>
                 )}
 
                 {/* ========================================================== */}
-                {/* MODE B: 🩺 CLINICAL WORKSTATION VIEW (FULL EHR CHART)      */}
+                {/* MODE B: CLINICAL WORKSTATION VIEW (EHR)                    */}
                 {/* ========================================================== */}
                 {viewMode === "clinical" && (
                   <div className="space-y-6">
 
-                    {/* Tabs Bar inside Clinical Mode */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 custom-scrollbar border-b border-zinc-800 pb-3">
+                    {/* Clinical Tabs Bar */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 border-b border-zinc-800 pb-3 custom-scrollbar">
                       {[
                         { id: "overview", label: "Lore & Plan", icon: FileCheck },
                         { 
@@ -1084,13 +1268,13 @@ export default function Home() {
                         },
                         { 
                           id: "meds_labs", 
-                          label: "Pill Box & Labs", 
+                          label: "Medications & Labs", 
                           icon: Pill,
                           count: (result.summary.current_medications?.length || 0) + (result.summary.recent_labs?.length || 0)
                         },
                         { 
                           id: "safety", 
-                          label: "Red Flag Radar", 
+                          label: "Safety Radar", 
                           icon: ShieldAlert,
                           count: (result.summary.red_flags?.length || 0) + (result.summary.allergies?.length || 0),
                           isUrgent: result.summary.red_flags?.length > 0
@@ -1103,23 +1287,19 @@ export default function Home() {
                           <button
                             key={tab.id}
                             onClick={() => setRightTab(tab.id as any)}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
                               isActive 
-                                ? "bg-[#ccff00] text-black border-2 border-black shadow-[3px_3px_0px_#000] scale-105" 
+                                ? "bg-indigo-600 text-white shadow-sm" 
                                 : tab.isUrgent
-                                ? "bg-[#ff2a5f]/20 text-[#ff2a5f] border-2 border-[#ff2a5f] hover:bg-[#ff2a5f] hover:text-black"
-                                : "bg-zinc-800 text-zinc-300 border-2 border-zinc-700 hover:border-zinc-500"
+                                ? "bg-rose-500/10 text-rose-300 border border-rose-500/30 hover:bg-rose-500/20"
+                                : "bg-zinc-900/60 text-zinc-400 border border-zinc-800 hover:text-white"
                             }`}
                           >
-                            <Icon size={13} className="stroke-[2.5]" />
+                            <Icon size={13} />
                             <span>{tab.label}</span>
                             {tab.count !== undefined && tab.count > 0 && (
-                              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full border border-black ${
-                                isActive 
-                                  ? "bg-black text-[#ccff00]" 
-                                  : tab.isUrgent 
-                                  ? "bg-[#ff2a5f] text-black font-black" 
-                                  : "bg-zinc-900 text-white"
+                              <span className={`text-[10px] font-mono px-1.5 rounded-full ${
+                                isActive ? "bg-white/20 text-white" : "bg-zinc-800 text-zinc-300"
                               }`}>
                                 {tab.count}
                               </span>
@@ -1129,167 +1309,331 @@ export default function Home() {
                       })}
                     </div>
 
-                    {/* 1. NARRATIVE LORE CARD */}
-                    {(rightTab === "overview" || rightTab === "all") && result.summary.narrative_summary && (
-                      <div className="bg-zinc-900 border-2 border-black rounded-3xl p-5 shadow-[5px_5px_0px_#ccff00]">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded-xl bg-[#ccff00] text-black border border-black shadow-[2px_2px_0px_#000]">
-                              <User size={15} className="stroke-[2.5]" />
+                    {/* OVERVIEW / LORE & PLAN TAB */}
+                    {(rightTab === "overview" || rightTab === "all") && (
+                      <div className="space-y-6">
+                        
+                        {/* Encounter Lore */}
+                        {result.summary.narrative_summary && (
+                          <div className="glass-card p-6 space-y-3">
+                            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                              <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                                Encounter Synthesis
+                              </h4>
+                              <span className="text-[10px] text-zinc-500 font-mono">Patient Narrative</span>
                             </div>
-                            <h3 className="text-xs font-black text-[#ccff00] uppercase tracking-widest">
-                              Encounter Synthesis Lore
-                            </h3>
-                          </div>
-                          <span className="text-[10px] font-mono font-bold bg-black text-[#ccff00] px-2 py-0.5 rounded-full border border-[#ccff00]">
-                            Plain English Story
-                          </span>
-                        </div>
-                        <div className="text-sm leading-relaxed text-zinc-100 whitespace-pre-wrap font-medium">
-                          {result.summary.narrative_summary}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 2. CHIEF COMPLAINT & IMPRESSION */}
-                    {(rightTab === "overview" || rightTab === "findings" || rightTab === "all") && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-zinc-900 border-2 border-black rounded-2xl p-4 shadow-[4px_4px_0px_#000]">
-                          <div className="text-[10px] uppercase font-black text-zinc-400 tracking-wider mb-1.5">
-                            Chief Complaint
-                          </div>
-                          {result.summary.chief_complaint ? (
-                            <div className="text-sm font-black text-white">
-                              <span>{result.summary.chief_complaint}</span>
-                              {renderUnverifiedBadge("chief_complaint")}
-                              {renderCitationBadge(result.summary.chief_complaint_source)}
+                            <div className="text-sm leading-relaxed text-zinc-200">
+                              {result.summary.narrative_summary}
                             </div>
-                          ) : (
-                            <span className="text-xs text-zinc-500 italic">Not mentioned in notes</span>
-                          )}
-                        </div>
-
-                        <div className="bg-zinc-900 border-2 border-black rounded-2xl p-4 shadow-[4px_4px_0px_#000]">
-                          <div className="text-[10px] uppercase font-black text-zinc-400 tracking-wider mb-1.5">
-                            Clinical Impression
-                          </div>
-                          {result.summary.clinical_impression ? (
-                            <div className="text-sm font-black text-[#ccff00]">
-                              <span>{result.summary.clinical_impression}</span>
-                              {renderUnverifiedBadge("clinical_impression")}
-                              {renderCitationBadge(result.summary.clinical_impression_source)}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-zinc-500 italic">Not mentioned in notes</span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 3. DOCUMENTED CONDITIONS */}
-                    {(rightTab === "findings" || rightTab === "all") && (
-                      <div className="bg-zinc-900 border-2 border-black rounded-2xl p-5 shadow-[4px_4px_0px_#000]">
-                        <div 
-                          onClick={() => toggleSection("documented_conditions")}
-                          className="flex items-center justify-between cursor-pointer select-none"
-                        >
-                          <div className="flex items-center gap-2">
-                            <HeartPulse size={16} className="text-[#ff2a5f] stroke-[2.5]" />
-                            <h4 className="text-xs font-black text-white uppercase tracking-widest">
-                              Documented Conditions
-                            </h4>
-                            <span className="text-[10px] font-mono font-black bg-black text-[#ccff00] px-2 py-0.5 rounded-full border border-[#ccff00]">
-                              {result.summary.documented_conditions?.length || 0}
-                            </span>
-                          </div>
-                          {collapsedSections["documented_conditions"] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                        </div>
-
-                        {!collapsedSections["documented_conditions"] && (
-                          <div className="mt-3.5">
-                            {result.summary.documented_conditions?.length > 0 ? (
-                              <ul className="space-y-2">
-                                {result.summary.documented_conditions.map((item: string, i: number) => (
-                                  <li key={i} className="text-sm flex items-start text-zinc-200">
-                                    <span className="text-[#ccff00] mr-2 font-bold">•</span>
-                                    <div>
-                                      <span className="font-black text-white">{item}</span>
-                                      {renderUnverifiedBadge(`documented_conditions[${i}]`)}
-                                      {renderCitationBadge(result.summary.documented_conditions_sources?.[i])}
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <div className="text-xs text-zinc-500 italic">None documented</div>
-                            )}
                           </div>
                         )}
+
+                        {/* Chief Complaint & Clinical Impression */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="glass-card p-5 space-y-2">
+                            <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wide block">
+                              Chief Complaint
+                            </span>
+                            {result.summary.chief_complaint ? (
+                              <div className="text-sm font-semibold text-white flex items-center justify-between">
+                                <span>{result.summary.chief_complaint}</span>
+                                <div className="flex items-center gap-2">
+                                  {renderUnverifiedBadge("chief_complaint")}
+                                  {renderCitationBadge(result.summary.chief_complaint_source)}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-zinc-500 italic">Not documented</span>
+                            )}
+                          </div>
+
+                          <div className="glass-card p-5 space-y-2">
+                            <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wide block">
+                              Clinical Impression (Suspected)
+                            </span>
+                            {result.summary.clinical_impression ? (
+                              <div className="text-sm font-semibold text-indigo-300 flex items-center justify-between">
+                                <span>{result.summary.clinical_impression}</span>
+                                <div className="flex items-center gap-2">
+                                  {renderUnverifiedBadge("clinical_impression")}
+                                  {renderCitationBadge(result.summary.clinical_impression_source)}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-zinc-500 italic">No formal impression recorded</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Doctor Documented Plan (Explicit) */}
+                        {result.summary.doctor_recommendations?.length > 0 && (
+                          <div className="glass-card p-6 space-y-3 border-indigo-500/30 bg-indigo-950/10">
+                            <div className="flex items-center justify-between border-b border-indigo-500/20 pb-3">
+                              <h4 className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                                Doctor-Documented Management Plan (Clinician Verbatim)
+                              </h4>
+                              <span className="text-[10px] font-mono text-indigo-400">Preserved Intent</span>
+                            </div>
+                            <ul className="space-y-2 pt-1">
+                              {result.summary.doctor_recommendations.map((rec: string, i: number) => (
+                                <li key={i} className="text-sm flex items-start gap-2.5 bg-zinc-900/80 p-3 rounded-lg border border-zinc-800 text-zinc-200">
+                                  <span className="text-indigo-400 font-semibold">&rarr;</span>
+                                  <span>{rec}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* AI-Suggested Next Steps (Structured) */}
+                        {result.summary.ai_recommendations?.length > 0 && (
+                          <div className="glass-card p-6 space-y-3">
+                            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                              <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                                AI-Suggested Next Steps & Investigations (Not Prescribed)
+                              </h4>
+                              <span className="text-[10px] text-zinc-500">Clinical Decision Support</span>
+                            </div>
+                            <div className="space-y-3 pt-1">
+                              {result.summary.ai_recommendations.map((rec: any, i: number) => (
+                                <div key={i} className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/60 space-y-1.5 text-xs">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-semibold text-sm text-zinc-100">{rec.recommendation}</span>
+                                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                      {rec.priority}
+                                    </span>
+                                  </div>
+                                  <p className="text-zinc-300">Rationale: {rec.reason}</p>
+                                  <div className="text-zinc-400 pt-1 flex items-center justify-between border-t border-zinc-800/60">
+                                    <span>Timing: {rec.timing || "Clinician to determine"}</span>
+                                    {rec.caveat && <span className="text-amber-300/80 italic">{rec.caveat}</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Differential Diagnoses */}
+                        {result.summary.differential_diagnoses?.length > 0 && (
+                          <div className="glass-card p-6 space-y-3">
+                            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 pb-3">
+                              Plausible Differentials with Evidence Attribution
+                            </h4>
+                            <ul className="space-y-2 pt-1">
+                              {result.summary.differential_diagnoses.map((dx: string, i: number) => (
+                                <li key={i} className="text-sm bg-zinc-900/60 p-3 rounded-lg border border-zinc-800 text-zinc-300">
+                                  {dx}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Clinical Uncertainties & Unknowns */}
+                        {result.summary.uncertainties?.length > 0 && (
+                          <div className="glass-card p-6 space-y-3 border-amber-500/20 bg-amber-950/5">
+                            <h4 className="text-xs font-semibold text-amber-300 uppercase tracking-wider border-b border-amber-500/20 pb-3">
+                              Clinical Uncertainties & Missing Causality
+                            </h4>
+                            <ul className="space-y-2 pt-1">
+                              {result.summary.uncertainties.map((unc: string, i: number) => (
+                                <li key={i} className="text-sm bg-zinc-900/60 p-3 rounded-lg border border-zinc-800 text-zinc-300 flex items-start gap-2">
+                                  <span className="text-amber-400 font-semibold">&bull;</span>
+                                  <span>{unc}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
                       </div>
                     )}
 
-                    {/* 4. INVESTIGATIONS & LABS */}
-                    {(rightTab === "meds_labs" || rightTab === "all") && (
-                      <div className="bg-zinc-900 border-2 border-black rounded-2xl p-5 shadow-[4px_4px_0px_#000]">
-                        <div 
-                          onClick={() => toggleSection("recent_labs")}
-                          className="flex items-center justify-between cursor-pointer select-none"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Microscope size={16} className="text-[#ff5500] stroke-[2.5]" />
-                            <h4 className="text-xs font-black text-white uppercase tracking-widest">
-                              Investigations & Laboratory Results
-                            </h4>
-                            <span className="text-[10px] font-mono font-black bg-[#ff5500] text-black px-2 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000]">
-                              {result.summary.recent_labs?.length || 0}
-                            </span>
-                          </div>
-                          {collapsedSections["recent_labs"] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                    {/* FINDINGS TAB */}
+                    {(rightTab === "findings" || rightTab === "all") && (
+                      <div className="space-y-6">
+                        
+                        {/* Documented Conditions (Strict Documented Only) */}
+                        <div className="glass-card p-6 space-y-3">
+                          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 pb-3">
+                            Documented Pre-Existing / Active Diagnoses
+                          </h4>
+                          {result.summary.documented_conditions?.length > 0 ? (
+                            <ul className="space-y-2 pt-1">
+                              {result.summary.documented_conditions.map((item: string, i: number) => (
+                                <li key={i} className="text-sm flex items-center justify-between bg-zinc-900/60 p-3 rounded-lg border border-zinc-800">
+                                  <span className="font-semibold text-white">{item}</span>
+                                  <div className="flex items-center gap-2">
+                                    {renderUnverifiedBadge(`documented_conditions[${i}]`)}
+                                    {renderCitationBadge(result.summary.documented_conditions_sources?.[i])}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-xs text-zinc-500 italic py-2">No formal diagnoses explicitly documented by clinician in source note.</p>
+                          )}
                         </div>
 
-                        {!collapsedSections["recent_labs"] && (
-                          <div className="mt-4">
-                            {result.summary.recent_labs?.length > 0 ? (
-                              <div className="space-y-2">
-                                {result.summary.recent_labs.map((l: any, i: number) => {
-                                  const isAbnormal = Boolean(l.abnormality);
-                                  return (
-                                    <div key={i} className={`p-3 rounded-2xl border-2 flex flex-wrap items-center justify-between gap-3 shadow-[2px_2px_0px_#000] ${
-                                      isAbnormal ? "bg-black border-[#ff2a5f]" : "bg-black border-zinc-800"
-                                    }`}>
-                                      <div className="flex items-center gap-3">
-                                        <span className="font-extrabold text-sm text-white">{l.test_name}</span>
-                                        <span className="font-mono text-sm text-[#ccff00] font-black">
-                                          {l.value || "—"} {l.unit || ""}
-                                        </span>
-                                        {l.abnormality && (
-                                          <span className="bg-[#ff2a5f] text-black border border-black text-[10px] font-black px-2 py-0.5 rounded uppercase">
-                                            {l.abnormality}
-                                          </span>
-                                        )}
-                                        {l.reference_range && (
-                                          <span className="text-xs text-zinc-400 font-mono">
-                                            (Ref: {l.reference_range})
-                                          </span>
-                                        )}
-                                      </div>
+                        {/* Symptoms */}
+                        <div className="glass-card p-6 space-y-3">
+                          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 pb-3">
+                            Patient-Reported Symptoms
+                          </h4>
+                          <ul className="space-y-2 pt-1">
+                            {result.summary.symptoms?.map((s: string, i: number) => (
+                              <li key={i} className="text-sm flex items-center justify-between bg-zinc-900/60 p-3 rounded-lg border border-zinc-800">
+                                <span className="text-zinc-200">{s}</span>
+                                <div className="flex items-center gap-2">
+                                  {renderUnverifiedBadge(`symptoms[${i}]`)}
+                                  {renderCitationBadge(result.summary.symptoms_sources?.[i])}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
 
-                                      <div className="flex items-center gap-2">
-                                        {l.date && (
-                                          <span className="text-[11px] text-zinc-500 font-mono">
-                                            [{l.date}]
-                                          </span>
-                                        )}
-                                        {renderUnverifiedBadge(`recent_labs[${i}]`)}
-                                        {renderCitationBadge(l.source)}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                        {/* Clinical Findings & Measured Vitals */}
+                        <div className="glass-card p-6 space-y-3">
+                          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 pb-3">
+                            Clinical Measurements & Signs (BP, Pulse, SpO2, Pallor)
+                          </h4>
+                          <ul className="space-y-2 pt-1">
+                            {result.summary.clinical_findings?.map((f: any, i: number) => {
+                              const findingText = typeof f === "string" ? f : `${f.finding || ""}${f.value ? ` (${f.value}${f.unit ? ` ${f.unit}` : ""})` : ""}${f.finding_type ? ` [${f.finding_type}]` : ""}`;
+                              const findingSource = typeof f === "object" && f?.source ? f.source : result.summary.clinical_findings_sources?.[i];
+                              return (
+                                <li key={i} className="text-sm flex items-center justify-between bg-zinc-900/60 p-3 rounded-lg border border-zinc-800">
+                                  <span className="text-zinc-200">{findingText}</span>
+                                  <div className="flex items-center gap-2">
+                                    {renderUnverifiedBadge(`clinical_findings[${i}]`)}
+                                    {renderCitationBadge(findingSource)}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+
+                        {/* Pertinent Negatives */}
+                        <div className="glass-card p-6 space-y-3">
+                          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 pb-3">
+                            Pertinent Negatives (Explicitly Denied in Source)
+                          </h4>
+                          <ul className="space-y-2 pt-1">
+                            {result.summary.pertinent_negatives?.map((n: string, i: number) => (
+                              <li key={i} className="text-sm flex items-center justify-between bg-zinc-900/60 p-3 rounded-lg border border-zinc-800">
+                                <span className="text-zinc-300">{n}</span>
+                                <div className="flex items-center gap-2">
+                                  {renderUnverifiedBadge(`pertinent_negatives[${i}]`)}
+                                  {renderCitationBadge(result.summary.pertinent_negatives_sources?.[i])}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* MEDS & LABS TAB */}
+                    {(rightTab === "meds_labs" || rightTab === "all") && (
+                      <div className="space-y-6">
+                        
+                        {/* Labs Table */}
+                        <div className="glass-card p-6 space-y-4">
+                          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 pb-3">
+                            Laboratory Investigations & Reference Ranges
+                          </h4>
+                          <div className="space-y-2.5 pt-1">
+                            {result.summary.recent_labs?.map((l: any, i: number) => (
+                              <div key={i} className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+                                <div className="flex items-center gap-3">
+                                  <span className="font-semibold text-sm text-white">{l.test_name}</span>
+                                  <span className="font-mono text-sm text-indigo-300 font-semibold">{l.value || "—"} {l.unit || ""}</span>
+                                  {l.abnormality && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-medium uppercase bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                      {l.abnormality}
+                                    </span>
+                                  )}
+                                  {l.reference_range && (
+                                    <span className="text-zinc-500 font-mono">
+                                      (Ref: {l.reference_range})
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {renderUnverifiedBadge(`recent_labs[${i}]`)}
+                                  {renderCitationBadge(l.source)}
+                                </div>
                               </div>
-                            ) : (
-                              <div className="text-xs text-zinc-500 italic">No lab investigations recorded</div>
-                            )}
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Medications Table */}
+                        <div className="glass-card p-6 space-y-4">
+                          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 pb-3">
+                            Medication Regimen & Duration
+                          </h4>
+                          <div className="space-y-3 pt-1">
+                            {result.summary.current_medications?.map((m: any, i: number) => (
+                              <div key={i} className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/50 space-y-2 text-xs">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-sm text-white">{m.drug}</span>
+                                    {m.route && <span className="text-zinc-400">({m.route})</span>}
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                    {m.status || "Current"}
+                                  </span>
+                                </div>
+                                <div className="text-zinc-300 flex items-center gap-3 flex-wrap">
+                                  <span>Dose: <strong className="text-white">{m.dose || "N/A"}</strong></span>
+                                  <span>&bull;</span>
+                                  <span>Frequency: <strong className="text-indigo-300">{m.frequency || "N/A"}</strong></span>
+                                  <span>&bull;</span>
+                                  <span>Duration: <strong className="text-zinc-300">{m.duration || "Duration not specified"}</strong></span>
+                                </div>
+                                <div className="pt-2 border-t border-zinc-800/60 flex items-center justify-between">
+                                  <span className="text-zinc-500">Source:</span>
+                                  {renderCitationBadge(m.source)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* SAFETY RADAR TAB */}
+                    {(rightTab === "safety" || rightTab === "all") && (
+                      <div className="space-y-6">
+                        {renderDrugIntelligenceCard()}
+                        {renderMissingInfoCard()}
+
+                        {/* Allergies */}
+                        {result.summary.allergies?.length > 0 && (
+                          <div className="glass-card p-6 space-y-3 border-amber-500/20 bg-amber-950/5">
+                            <h4 className="text-xs font-semibold text-amber-300 uppercase tracking-wider border-b border-amber-500/20 pb-3">
+                              Allergies & Adverse Drug Reactions
+                            </h4>
+                            <div className="space-y-2 pt-1">
+                              {result.summary.allergies.map((a: any, i: number) => (
+                                <div key={i} className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800 flex items-center justify-between text-xs">
+                                  <div>
+                                    <span className="text-white font-semibold">{a.allergen}</span>
+                                    {a.reaction && <span className="text-zinc-400 ml-2">({a.reaction})</span>}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {renderUnverifiedBadge(`allergies[${i}]`)}
+                                    {renderCitationBadge(a.source)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1299,9 +1643,9 @@ export default function Home() {
                 )}
 
               </div>
+            )}
 
-            </div>
-          )}
+          </div>
 
         </div>
 

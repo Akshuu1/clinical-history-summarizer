@@ -7,8 +7,8 @@
 
 @layer base {
   :root {
-    --background: #0a0b0e;
-    --foreground: #f5f5f7;
+    --background: #090a0f;
+    --foreground: #f4f4f6;
   }
 }
 
@@ -16,66 +16,57 @@ body {
   color: var(--foreground);
   background: var(--background);
   min-height: 100vh;
-  /* Funky Cyber Dot Grid Pattern */
+  /* Ultra-subtle, elegant ambient background */
   background-image: 
-    radial-gradient(rgba(204, 255, 0, 0.12) 1px, transparent 1px),
-    radial-gradient(circle at 90% 10%, rgba(255, 85, 0, 0.12), transparent 40%),
-    radial-gradient(circle at 10% 90%, rgba(204, 255, 0, 0.1), transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(250, 204, 21, 0.04), transparent 50%);
-  background-size: 28px 28px, 100% 100%, 100% 100%, 100% 100%;
+    radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.05), transparent 45%),
+    radial-gradient(circle at 85% 90%, rgba(14, 165, 233, 0.04), transparent 40%),
+    radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px;
   background-attachment: fixed;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
 }
 
 @layer utilities {
-  .neo-box {
-    @apply bg-zinc-900 border-2 border-zinc-700/80 rounded-2xl shadow-[5px_5px_0px_rgba(204,255,0,0.85)] transition-all duration-200;
+  .glass-card {
+    @apply bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 rounded-2xl transition-all duration-200 hover:border-zinc-700/80;
   }
-  .neo-box-orange {
-    @apply bg-zinc-900 border-2 border-zinc-700/80 rounded-2xl shadow-[5px_5px_0px_rgba(255,85,0,0.85)] transition-all duration-200;
+  .glass-card-interactive {
+    @apply bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 rounded-2xl transition-all duration-200 hover:border-indigo-500/40 hover:bg-zinc-900/80;
   }
-  .neo-box-white {
-    @apply bg-zinc-900/90 border-2 border-zinc-700 rounded-2xl shadow-[5px_5px_0px_rgba(255,255,255,0.7)] transition-all duration-200;
+  .glass-panel {
+    @apply bg-zinc-950/50 backdrop-blur-xl border border-zinc-800/70 rounded-2xl;
   }
-  .neo-pill {
-    @apply border-2 border-zinc-900 font-mono font-extrabold text-[11px] rounded-full uppercase tracking-wider;
-  }
-  .animate-wiggle {
-    animation: wiggle 1s ease-in-out infinite;
+  .pill-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium tracking-wide;
   }
 }
 
-@keyframes wiggle {
-  0%, 100% { transform: rotate(-2deg); }
-  50% { transform: rotate(2deg); }
-}
-
-@keyframes target-glow-genz {
-  0% { background-color: rgba(204, 255, 0, 0.28); box-shadow: 0 0 18px rgba(204, 255, 0, 0.6); }
-  50% { background-color: rgba(204, 255, 0, 0.12); box-shadow: 0 0 8px rgba(204, 255, 0, 0.3); }
-  100% { background-color: rgba(204, 255, 0, 0.24); box-shadow: 0 0 14px rgba(204, 255, 0, 0.5); }
+@keyframes citation-snap {
+  0% { background-color: rgba(99, 102, 241, 0.25); }
+  50% { background-color: rgba(99, 102, 241, 0.1); }
+  100% { background-color: rgba(99, 102, 241, 0.2); }
 }
 
 .citation-active-target {
-  animation: target-glow-genz 1.2s ease-in-out infinite;
-  border-left: 4px solid #ccff00 !important;
+  animation: citation-snap 1.5s ease-in-out infinite;
+  border-left: 3px solid #6366f1 !important;
 }
 
-/* Custom Funky Scrollbar */
+/* Elegant Minimalist Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.3);
+  background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #ccff00;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 9999px;
-  border: 1px solid #000;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #ff5500;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* Print Styles */

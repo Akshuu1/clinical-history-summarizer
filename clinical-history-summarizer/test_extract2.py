@@ -1,4 +1,4 @@
-from app.services.extractor import extract_summary_with_sources
+from app.services.extractor import extract_summary_agentic
 
 notes = '''Patient: R.K., 47 years, Male
 Date: 07 October 2026
@@ -35,10 +35,33 @@ Allergy: says "one antibiotic once caused itching", doesn't remember the name. N
 Plan discussed: further evaluation of low Hb, dietary history, check for possible source of blood loss, start treatment depending on evaluation. Follow-up after additional tests.'''
 
 try:
-    summary = extract_summary_with_sources(raw_notes=notes, patient_id="DEMO-001")
-    print("SUCCESS: JSON Parsed properly without truncation or quote issues.")
-    print("Extracted narrative:")
+    summary, model_used = extract_summary_agentic(raw_notes=notes, patient_id="DEMO-001")
+    print(f"SUCCESS: Model used: {model_used}")
+    print("\n--- NARRATIVE SUMMARY ---")
     print(summary.narrative_summary)
+    print("\n--- DOCUMENTED CONDITIONS (should NOT contain inferred IDA) ---")
+    print(summary.documented_conditions)
+    print("\n--- CLINICAL IMPRESSION / DIFFERENTIALS ---")
+    print("Impression:", summary.clinical_impression)
+    print("Differentials:", summary.differential_diagnoses)
+    print("\n--- PERTINENT NEGATIVES (should preserve fever, cough, weight loss, chest pain, fainting) ---")
+    print(summary.pertinent_negatives)
+    print("\n--- CURRENT MEDICATIONS (should have pantoprazole 40mg once daily, duration unclear, no duplicate freq) ---")
+    for m in summary.current_medications:
+        print(f"Med: {m.drug} | Dose: {m.dose} | Freq: {m.frequency} | Status: {m.status} | Duration: {m.duration} | PRN: {m.prn_status}")
+    print("\n--- ALLERGIES ---")
+    for a in summary.allergies:
+        print(f"Allergy: {a.allergen} | Reaction: {a.reaction}")
+    print("\n--- DOCTOR DOCUMENTED PLAN (preserves exact clinician intent, no AI recs) ---")
+    for d in summary.doctor_recommendations:
+        print(f"Doc: {d}")
+    print("\n--- AI SUGGESTED NEXT STEPS (structured, labeled not prescribed) ---")
+    for r in summary.ai_recommendations:
+        print(f"AI Rec: [{r.priority.upper()}] {r.recommendation} | Reason: {r.reason} | Status: {r.prescription_status} | Timing: {r.timing} | Caveat: {r.caveat}")
+    print("\n--- UNCERTAINTIES & RED FLAGS ---")
+    print("Uncertainties:", summary.uncertainties)
+    print("Red flags:", summary.red_flags)
+    print("Unverified fields:", summary.unverified_fields)
 except Exception as e:
     import traceback
     traceback.print_exc()

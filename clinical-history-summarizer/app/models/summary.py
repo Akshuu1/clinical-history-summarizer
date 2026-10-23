@@ -18,7 +18,7 @@ lifestyle instructions, referral details beyond a simple task).
 """
 
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SourceReference(BaseModel):
@@ -53,14 +53,17 @@ class MedicationItem(BaseModel):
     dose: Optional[str] = None
     route: Optional[str] = None
     frequency: Optional[str] = None
-    status: Optional[str] = None
+    prn_status: Optional[str] = Field(default="Scheduled", description="'Scheduled', 'PRN', or 'Unclear'")
+    status: Optional[str] = Field(default="Current", description="'Current', 'Newly prescribed', 'Discontinued', 'Reported by patient', or 'Unclear'")
+    duration: Optional[str] = Field(default="Duration not specified", description="Duration if documented, else 'Duration not specified'")
+    missing_information: Optional[str] = None
     uncertainty: Optional[str] = None
     source: Optional[SourceReference] = None
 
 
 class AllergyItem(BaseModel):
     """A single allergy entry extracted from the clinical notes."""
-    allergen: str
+    allergen: Optional[str] = None
     reaction: Optional[str] = None
     status: Optional[str] = None
     source: Optional[SourceReference] = None
@@ -76,6 +79,41 @@ class LabResult(BaseModel):
     abnormality: Optional[str] = None
     source: Optional[SourceReference] = None
 
+    @field_validator("value", "unit", mode="before")
+    @classmethod
+    def coerce_to_str(cls, v: Any) -> Optional[str]:
+        if v is not None:
+            return str(v)
+        return None
+
+
+class ClinicalFinding(BaseModel):
+    finding: str
+    finding_type: Optional[str] = None
+    value: Optional[str] = None
+    unit: Optional[str] = None
+    source: Optional[SourceReference] = None
+
+    @field_validator("value", "unit", "finding_type", mode="before")
+    @classmethod
+    def coerce_to_str(cls, v: Any) -> Optional[str]:
+        if v is not None:
+            return str(v)
+        return None
+
+
+class AIRecommendation(BaseModel):
+    recommendation: str
+    reason: Optional[str] = None
+    priority: Optional[str] = None  
+    prescription_status: str = "Not documented as prescribed"
+    timing: Optional[str] = None
+    caveat: Optional[str] = None
+
+
+# Alias for backward compatibility
+StructuredRecommendation = AIRecommendation
+
 
 class ClinicalSummary(BaseModel):
     patient_id: str
@@ -88,8 +126,7 @@ class ClinicalSummary(BaseModel):
     symptoms: List[str] = []
     symptoms_sources: List[SourceReference] = []
 
-    clinical_findings: List[str] = []
-    clinical_findings_sources: List[SourceReference] = []
+    clinical_findings: List[ClinicalFinding] = []
 
     pertinent_negatives: List[str] = []
     pertinent_negatives_sources: List[SourceReference] = []
@@ -118,57 +155,40 @@ class ClinicalSummary(BaseModel):
     unverified_fields: List[str] = []
     """
     Names of fields whose values could not be matched to a valid source line.
-    Examples: "chief_complaint", "current_medications[1]", "allergies[0]".
-    Consumers of this summary should treat these entries as low-confidence
-    and not act on them without independent verification.
     """
 
     missing_fields: List[str] = []
     """
     Names of core fields that appear to be entirely absent from the notes.
-    The doctor wrote nothing that could be interpreted as this category.
-
-    Distinction from unverified_fields:
-      - unverified_fields: LLM found something but citation couldn't be confirmed.
-      - missing_fields:    Nothing resembling this category exists in the notes.
-
-    Consumers should consider asking the patient directly or checking other
-    records for fields listed here.
     """
 
     raw_extra_fields: Dict[str, Any] = Field(default_factory=dict)
     """
-    Anything meaningful the doctor wrote that does not map to a standard
-    schema field (e.g. "diet_advice", "lifestyle_instructions",
-    "referral_details"). Keyed by short section label; values include
-    the content text and optional citation.
-
-    Populated only by the two-stage extraction pipeline
-    (extract_summary_two_stage). Always empty in single-stage mode.
-    Content in this field is NOT validated by the citation checker 
-    and should be treated as unverified regardless of any quoted_text 
-    values present within it.
+    Anything meaningful the doctor wrote that does not map to a standard schema field.
     """
 
     narrative_summary: Optional[str] = None
     """
     AI-generated plain-English synthesis of the entire clinical encounter.
-    Written so that both clinicians and patients can understand the full
-    picture: what is happening, what was found, what was prescribed, and
-    what happens next. Generated alongside extraction in a single LLM call.
     """
 
     next_steps: List[str] = []
     """
-    AI-generated suggested actions for information gaps identified 
-    during extraction. These are generated by the LLM and are not 
-    guaranteed to correspond exactly to missing_fields — treat as 
-    supplementary guidance only, not as a validated output.
+    List of AI-suggested recommendations (formatted strings).
+    """
+
+    ai_recommendations: List[AIRecommendation] = []
+    """
+    Structured AI-generated suggestions. These are clearly labeled
+    as AI-generated and not prescribed by the doctor. Always shown
+    separately from doctor_recommendations. Never treat these as
+    clinical instructions.
     """
 
     doctor_recommendations: List[str] = []
     """
     All explicit recommendations, prescriptions, and instructions documented
     by the doctor — extracted verbatim from plan/management sections.
-    E.g. ["Start oral iron", "Refer to gynaecology for HMB", "Repeat CBC in 4-6 weeks"].
+    Preserves exact intent, dosage, and follow-up without adding AI suggestions.
     """
+
